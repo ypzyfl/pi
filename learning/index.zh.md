@@ -38,9 +38,10 @@
 | 笔记 | 一句话 |
 |---|---|
 | [notes/architecture/agent-vs-harness.zh.md](notes/architecture/agent-vs-harness.zh.md) | 产品是 agent、仓库是 harness：构成等式（LLM + 工具 + loop）只占全仓约 0.5–17%，其余是 harness |
-| [notes/architecture/pi-architecture-overview.zh.md](notes/architecture/pi-architecture-overview.zh.md) | 架构级认知总览：设计理念五信条、11 包分层（ASCII / mermaid / 邻接表三投影）、运行时双栈、消息生命周期、AgentSession 组装、会话树、扩展体系 |
+| [notes/architecture/pi-architecture-overview.zh.md](notes/architecture/pi-architecture-overview.zh.md) | 架构级认知总览：设计理念五信条、12 包分层（ASCII / mermaid / 邻接表三投影）、运行时双栈、消息生命周期、AgentSession 组装、会话树、扩展体系 |
 | [notes/architecture/classic-stack-overview.zh.md](notes/architecture/classic-stack-overview.zh.md) | 经典内存栈（生产路径）聚焦视图：6 包依赖、静态结构、数据流与事件流、AgentSession 组装、会话树、工具与 edit 安全设计、三模式、扩展体系、关键文件速查——学习主线文档 |
 | [notes/architecture/pi-security-model.zh.md](notes/architecture/pi-security-model.zh.md) | pi 安全模型：七层输入守卫（执行权限/代码信任/项目信任/工具可见性/工具拦截/凭据/子智能体）+ 零内置沙箱、无内置沙箱的设计哲学、四种容器化隔离模式 |
+| [notes/architecture/prompt-change-practices.zh.md](notes/architecture/prompt-change-practices.zh.md) | 业界实践对照：系统提示词变化时的处理——主流「内存态整体替换」、发给模型是替换而非追加、KV cache 失效与费用代价、pi 的少数派做法与殊途同归 |
 | [notes/mechanisms/session-message-flow.zh.md](notes/mechanisms/session-message-flow.zh.md) | 一次「一问两调一答」对话在会话 JSONL 里的完整 entry 链与工具调用关联（含基础 / 全量两图） |
 | [notes/mechanisms/test-isolation.zh.md](notes/mechanisms/test-isolation.zh.md) | 测试隔离：e2e 激活开关是环境变量与 auth.json 两条钥匙入口，test.sh 双层堵死；check 验「形」、test.sh 验「行」 |
 | [notes/mechanisms/contribution-gate.zh.md](notes/mechanisms/contribution-gate.zh.md) | 贡献门槛：auto-close 是三个 workflow + 白名单文件的机器执行；lgtmi/lgtm 能力不对称由代码强制、审批状态进 git |
@@ -48,6 +49,8 @@
 | [notes/mechanisms/test-sh-on-windows.zh.md](notes/mechanisms/test-sh-on-windows.zh.md) | test.sh 在 Windows：Git Bash 是唯一入口（勿用 WSL bash）；MSYS 对 HOME/USERPROFILE 转换不对称破坏 ~/ 缩写；rolldown 截断诊断案例；套件失败四分类 |
 | [notes/mechanisms/event-stream.zh.md](notes/mechanisms/event-stream.zh.md) | EventStream 异步流原语（重点学习篇）：双栈 FIFO、push/消费/终结三态、result 幂等提取、无背压取舍、AssistantMessageEventStream 特化、agent-loop 两处使用 |
 | [notes/mechanisms/abort-signal.zh.md](notes/mechanisms/abort-signal.zh.md) | AbortSignal 机制：控制者（AbortController.abort）与感知者（监听/轮询）单向信号链、raceWithAbortSignal 三重竞态防护、provider 层统一 aborted/error、abort 永不重试、两个 abort.ts 复制适配 |
+| [notes/mechanisms/structured-system-prompt.zh.md](notes/mechanisms/structured-system-prompt.zh.md) | 结构化系统提示词：system 消息承载 prompt 与工具声明——sections 命名段、diff 追加 patch、重放按段覆盖（持久层追加 vs 投影层替换）、prompt caching 三段断点 |
+| [notes/mechanisms/context-compaction.zh.md](notes/mechanisms/context-compaction.zh.md) | 上下文自动压缩：阈值公式触发、独立摘要调用、同步阻塞、系统提示词/工具不受影响（压缩边界快照保存） |
 | [notes/modules/agent-package-overview.zh.md](notes/modules/agent-package-overview.zh.md) | agent 包骨架：顶层七文件 + search 职责、README 嵌入者叙事、observational vs barrier、convertToLlm 唯一桥接（阶段 3 第 1 步） |
 | [notes/modules/agent-loop.zh.md](notes/modules/agent-loop.zh.md) | agent-loop.ts 精读：四入口 2×2 组合、双层 while 两种「继续」、事件序列、工具三段式、停止/继续条件、错误通道辨析、runAgentLoop vs agentLoop 搜证（阶段 3 第 2/3 步） |
 | [notes/modules/agent-loop-runloop.zh.md](notes/modules/agent-loop-runloop.zh.md) | runLoop 深度解析：完整流程图 + 节点解释、三条退出路径、一次 runLoop 的粒度（session/run/turn）、steering/follow-up 四条分类来源 |
@@ -83,6 +86,8 @@
 | 会话 JSONL 树模型 | pi 全部持久能力（分支 / resume / compaction / 导出 / 分享）的地基 | 锚点已建立（[experiments/001](experiments/001-session-anchor.zh.md)，2026-09-08 补录） | [map.zh.md](map.zh.md)「会话模型」；[experiments/001-session-anchor.zh.md](experiments/001-session-anchor.zh.md) |
 | 扩展加载机制 | 「最小核心 + 自扩展」是 pi 的立身信条，扩展系统是信条的载体 | 阶段 5 | — |
 | 与 dsh 的架构对照 | 已有 dsh 心智模型可迁移：「一切皆插件」（配置式组合） vs「最小核心 + 外挂资源」（资源加载）；对照能凸显两者的真实取舍 | 按需 | [map.zh.md](map.zh.md)「分层心智模型」 |
+| 系统提示词与工具声明的 system 消息化重构（2026-09-19） | `AgentContext.systemPrompt` / `AgentToolResult.addedToolNames` 删除，改为 transcript 的 system 消息承载 + `declareToolChanges` 动态声明；动摇 loop 系列「llmContext 三件套」结论 | 待重学 | [agent-loop.zh.md](notes/modules/agent-loop.zh.md)、[agent-loop-stream.zh.md](notes/modules/agent-loop-stream.zh.md) 已修正 |
+| durable 包与 pico3（2026-09-19） | durable 方向新一代落地：独立 `packages/durable`（Pico runtime）+ agent `harness/pico3/`，与既有 AgentHarness 关系待裁决 | 待重学 | [dual-runtime-semantics.zh.md](notes/mechanisms/dual-runtime-semantics.zh.md)「版本演进」 |
 
 ## 常用命令备忘
 

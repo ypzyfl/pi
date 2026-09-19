@@ -16,7 +16,7 @@ pi 是一个自扩展编码 agent 的 monorepo：产品 `pi`（coding-agent 包�
 4. **信任而非权限**：pi 不内置权限系统，以启动用户的权限运行；需要边界时容器化/沙箱化（Gondolin / Docker / OpenShell 三模式，见 [containerization.md](../../../packages/coding-agent/docs/containerization.md)）。项目级信任门控决定扩展是否加载（未信任先只加载 pre-trust 集）。
 5. **依赖即审查代码**：直接依赖钉死精确版本、lockfile 是 ground truth、`--ignore-scripts`、锁步版本发布。工程哲学：agent 会改你的代码，所以供应链必须可审计。
 
-## 2. 总体架构：11 包分层
+## 2. 总体架构：12 包分层
 
 依赖方向：箭头 = 「依赖」（建在谁之上）。读自各包 package.json 的 workspace 依赖边，与 [map.zh.md](../../map.zh.md) 已验证拓扑一致。图中每个包恰好出现一次，主链 9 条边全部画出。
 
@@ -45,7 +45,7 @@ pi 是一个自扩展编码 agent 的 monorepo：产品 `pi`（coding-agent 包�
                   +--------------------------+
 ```
 
-mermaid 总图（11 包 + 全部 11 条已验证边；层次依据 = 依赖深度，即最长依赖路径——所有边都只向下指，无环。ASCII 图与本图等价，看层次用本图，纯文本场景用 ASCII 图，核对用下方邻接表）：
+mermaid 总图（12 包 + 全部已验证边；层次依据 = 依赖深度，即最长依赖路径——所有边都只向下指，无环。ASCII 图与本图等价，看层次用本图，纯文本场景用 ASCII 图，核对用下方邻接表）：
 
 ```mermaid
 flowchart TB
@@ -56,6 +56,7 @@ flowchart TB
     end
     subgraph L2["第 2 层: 运行时与客户端"]
         AGENT["agent<br/>loop + Agent + harness 双栈"]
+        DURABLE["durable<br/>Pico 持久化运行时"]
         CLIENT["client"]
     end
     subgraph L1["第 1 层: 模型 API 与远程协议"]
@@ -77,6 +78,8 @@ flowchart TB
     AGENT --> CHORD
     AGENT --> TELEMETRY
     AI --> TELEMETRY
+    DURABLE --> AI
+    DURABLE --> CHORD
     SERVER --> AGENT
     SERVER --> PROTOCOL
     CLIENT --> PROTOCOL
@@ -91,7 +94,7 @@ flowchart TB
 |---|---|---|
 | L0 | chord, telemetry, tui | 无依赖 |
 | L1 | ai, protocol | ai→telemetry；protocol→chord |
-| L2 | agent, client | agent→ai→telemetry；client→protocol |
+| L2 | agent, durable, client | agent→ai→telemetry；durable→ai→telemetry（durable 另直达 chord）；client→protocol |
 | L3 | coding-agent, server, sqlite-node | 三者最深路径都到 agent（如 coding-agent→agent→ai→telemetry） |
 
 跨层直达边（coding-agent 直达 tui/chord、agent 直达 chord/telemetry）是真实的依赖边，没有为图面整齐而合并或省略。
@@ -120,6 +123,7 @@ flowchart TB
 | coding-agent | agent, ai, tui, chord |
 | agent | ai, chord, telemetry |
 | ai | telemetry |
+| durable | ai, chord |
 | tui | —（无） |
 | chord | —（无） |
 | telemetry | —（无） |
@@ -299,7 +303,7 @@ runAgentLoop (agent-loop.ts, 双层 while)
  |    |  |       |                                                  |
  |    |  |       v                                                  |
  |    |  |  transformContext -> convertToLlm                         |
- |    |  |       |  (系统提示词 + 历史 + 工具 schema -> Message[])     |
+ |    |  |       |  (历史消息 -> Message[]；提示词/工具在 system 消息)  |
  |    |  |       v                                                  |
  |    |  |  streamFn -----> pi-ai streamSimple -----> provider       |
  |    |  |       |             (统一 API, 词汇转换)     (OpenAI/      |
@@ -419,6 +423,7 @@ extension 的挂载点全集：工具（`registerTool`）、斜杠命令（`regi
 | coding-agent | 产品层：AgentSession 组装、内置工具、会话/设置/信任、扩展加载、三模式 | 阶段 4 |
 | agent | 运行时核心：双栈（loop+Agent 经典栈 / AgentHarness durable 栈）+ 共享纯函数（compaction 等） | 阶段 3 |
 | ai | 模型层：统一多 provider LLM API、流式词汇、生成式模型目录（`models.generated.ts` 红线：改走 `generate-models.ts`） | 阶段 2 |
+| durable | Pico 持久化运行时：conversation / task / document 的 durable record 契约 + 内存存储（当前无包依赖它） | 阶段 7 按需 |
 | tui | 独立 UI 库：差分渲染、组件模型，仅被 coding-agent 消费 | 阶段 7 按需 |
 | chord | 地基：应用组合运行时（services / replicated state / RPC / plugins），几乎被所有上层依赖 | 阶段 7 按需 |
 | telemetry | 地基：厂商中立遥测契约（无 workspace 依赖） | 阶段 7 按需 |
@@ -447,6 +452,7 @@ packages/agent/src/
     env/               Node 执行环境 (FileSystem / Shell 抽象)
     execution/         assistant 流 / 工具执行 / effect-gate
     tools/             内置编码工具 (read/write/edit/bash/...)
+    pico3/             实验性子系统 (experimental/pico3 导出, 2026-09-19 新增)
 ```
 
 ## 9. 对既有认知地图的修正

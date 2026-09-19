@@ -2,7 +2,7 @@
 
 本文是阶段 1（含阶段 0 会话锚点）的**执行路线 + 逐步勾选进度**：把 [learning-path.zh.md](../learning-path.zh.md) 阶段 1 的「精读材料 + 动手任务 + 过关检验」拆成可逐步推进的小步骤，并标出每步的验证点与学习区落盘动作。事实源仍是 learning-path.zh.md，本文不重复其内容、只做执行拆解；冲突以 learning-path.zh.md 为准。
 
-过关标准（来自 learning-path.zh.md 完成标志表阶段 1 行）：① 工具链三命令本机通过；② 能画 11 包依赖拓扑；③ 锚点实验完成，能说出三类基本 entry；④ 能复述五个核心术语；⑤ 能复述一条消息穿过各层的路径。
+过关标准（来自 learning-path.zh.md 完成标志表阶段 1 行）：① 工具链三命令本机通过；② 能画 12 包依赖拓扑；③ 锚点实验完成，能说出三类基本 entry；④ 能复述五个核心术语；⑤ 能复述一条消息穿过各层的路径。
 
 ## 路线总览（六步，锚点先行）
 
@@ -93,7 +93,7 @@
 ## 过关检验自测（完成时逐条打勾）
 
 - [x] ① `npm install --ignore-scripts` / `npm run check` / `./test.sh` 本机通过
-- [x] ② 能不看资料画出 11 包依赖拓扑（至少六个关键包的位置与依赖边）
+- [x] ② 能不看资料画出 12 包依赖拓扑（至少六个关键包的位置与依赖边）
 - [x] ③ 锚点实验完成，能说出 SessionHeader / 消息 entry / toolResult entry 三类基本结构
 - [x] ④ 能用自己的话复述五个核心术语（AgentSession / agent loop / harness / extension / skill）
 - [x] ⑤ 能凭记忆复述一条消息穿过各层的路径

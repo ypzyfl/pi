@@ -136,7 +136,7 @@ sequenceDiagram
 flowchart LR
     A["currentContext.messages<br/>AgentMessage[]"] -->|"transformContext(可选)"| B["AgentMessage[]"]
     B -->|"convertToLlm(必需)"| C["Message[]"]
-    C --> D["llmContext = systemPrompt + messages + tools"]
+    C --> D["llmContext = normalizeContext({ messages })"]
     D -->|"getApiKey(可选)"| E["streamFunction(model, llmContext, opts)"]
     E --> F["AssistantMessageEventStream"]
     F -->|for await 折叠| G["partialMessage<br/>emit message_start / message_update"]

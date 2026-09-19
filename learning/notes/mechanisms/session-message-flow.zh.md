@@ -1,6 +1,6 @@
 # 会话消息流：从 Session 创建到最终回答
 
-状态: 草稿（流程框架已对照 session-format.md 与真实会话文件；工具调用关联与多轮 append 已于 2026-09-08 对照真实会话实测——含并行双调，见 [experiments/001](../../experiments/001-session-anchor.zh.md)；压缩、分支部分仍来自文档推导；session/run/turn 层级来自 agent 包源码阅读，未经运行时事件验证；事件→落盘映射已于 2026-09-15 对照 agent.ts / agent-session.ts / session-manager.ts 补验，见「事件层 vs 持久层」一节）
+状态: 草稿（流程框架已对照 session-format.md 与真实会话文件；工具调用关联与多轮 append 已于 2026-09-08 对照真实会话实测——含并行双调，见 [experiments/001](../../experiments/001-session-anchor.zh.md)；压缩、分支部分仍来自文档推导；session/run/turn 层级来自 agent 包源码阅读，未经运行时事件验证；事件→落盘映射已于 2026-09-15 对照 agent.ts / agent-session.ts / session-manager.ts 补验，见「事件层 vs 持久层」一节；2026-09-19 版本对齐：system 消息落盘（承载系统提示词 + 工具声明），会话首条由 user 变为 system，见「system 消息落盘」一节）
 
 ## 事实源（链接，不复述）
 
@@ -13,7 +13,7 @@
 
 ## 它是什么（用自己的话）
 
-一次「用户提问 → 模型两次工具调用 → 最终回答」的完整对话，在会话 JSONL 里是从 user entry 到最终 assistant entry 的一段 entry 链；每轮模型请求都携带完整消息数组，历史随轮次增长。assistant 消息的 content 是 text / thinking / toolCall 三种块的任意组合；模型输出 `stopReason: "toolUse"` 时 agent loop 在端侧本地执行工具，把结果作为独立 toolResult entry 落盘并随下一轮请求回传，见到 `stopReason: "stop"` 才结束本轮。工具调用与结果的关联不走 parentId，而是 toolCall 块的 `id` 与 toolResult entry 的 `toolCallId` 互相回指。
+一次「用户提问 → 模型两次工具调用 → 最终回答」的完整对话，在会话 JSONL 里是从（system +）user entry 到最终 assistant entry 的一段 entry 链；每轮模型请求都携带完整消息数组，历史随轮次增长。会话首个请求会落盘一条 system 消息（承载系统提示词与工具声明），后续提示词/工具的变化也以追加 system 消息的方式落盘。assistant 消息的 content 是 text / thinking / toolCall 三种块的任意组合；模型输出 `stopReason: "toolUse"` 时 agent loop 在端侧本地执行工具，把结果作为独立 toolResult entry 落盘并随下一轮请求回传，见到 `stopReason: "stop"` 才结束本轮。工具调用与结果的关联不走 parentId，而是 toolCall 块的 `id` 与 toolResult entry 的 `toolCallId` 互相回指。
 
 ## 基础流程图（单轮：一问两调一答）
 
@@ -26,6 +26,12 @@
       {"type":"session",version:3,
        cwd:...}              (首行，无 id/parentId)
       + model_change（记录选定模型）
+          │
+   ①.5 首个请求前
+      append s1 {role:"system",
+        content:提示词, sections:{...},
+        toolsAdded:[read,bash,...]}
+      (承载系统提示词 + 工具声明，落盘)
           │
    ② 用户输入"问题"
       append e1 {role:"user",
@@ -93,6 +99,12 @@
     ② model_change {provider, modelId}            用户选定模型
     ③ thinking_level_change {thinkingLevel:"high"} 用户设置思考等级
        ※ 两者不作为消息进上下文；请求时从路径提取最新值作为设置
+             │
+    ③.5 首个请求前
+        append s1 {role:"system", content:提示词,
+          sections:{...}, toolsAdded:[...]}
+        ※ system 消息承载系统提示词与工具声明；是 message entry
+        ※ 后续提示词/工具变化也追加 system 消息（patch sections / toolsAdded/Removed）
              │
     ④ 用户输入"问题"
        append e1 {role:"user", content:[text]}
@@ -194,6 +206,7 @@ mc1 ─ tl1 ─ e1 ─ e2 ─ e3 ─ e4 ─ e5 ─ e6 ─ c1 ─ cm1 ─ be1 ─
 | 类型（entry / role） | 进上下文 | 请求时如何参与 |
 |---|---|---|
 | `session`（header） | 否 | 元数据，不在树中 |
+| `message`: system | 是 | 系统提示词 + 工具声明（`toolsAdded`/`toolsRemoved`）；重放得到当前 prompt/tools |
 | `message`: user / assistant / toolResult | 是 | 对话主体，原样进消息数组 |
 | `message`: bashExecution | 是（`!`）/ 否（`!!`） | 用户 shell 命令与输出 |
 | `custom` | 否 | 扩展状态，重载时恢复 |
@@ -203,9 +216,31 @@ mc1 ─ tl1 ─ e1 ─ e2 ─ e3 ─ e4 ─ e5 ─ e6 ─ c1 ─ cm1 ─ be1 ─
 | `model_change` / `thinking_level_change` | 否 | 从路径提取最新值作为请求设置 |
 | `session_info` / `label` | 否 | 显示名 / 书签，纯交互元数据 |
 
-AgentMessage 全部 7 个 role 在图中都有出现：user、assistant、toolResult（④—⑲）、bashExecution（⑫）、custom（⑪ 经转换）、branchSummary（⑳ 经转换）、compactionSummary（⑮ 经转换）。
+AgentMessage 全部 8 个 role 在图中都有出现：system（③.5，承载提示词+工具）、user、assistant、toolResult（④—⑲）、bashExecution（⑫）、custom（⑪ 经转换）、branchSummary（⑳ 经转换）、compactionSummary（⑮ 经转换）。
 
 两个值得记住的细节：**compaction 和 branch_summary 的摘要本身各是一次 LLM 调用**（entry 上的 `usage` 字段记录，计入会话成本）；**压缩是路径局部的**——分支到 e8 之后，旧路径上的 cp1 不再参与新分支的上下文重建。
+
+## system 消息落盘（2026-09-19 起）
+
+旧版会话文件的 entry 链里**没有 system 消息**——系统提示词和工具声明活在运行时内存里，不落盘。2026-09-19 合并后，它们被收编进 transcript：**系统提示词与工具声明作为 `message` entry（`role: "system"`）落盘**，是会话树里的事实，不再是「运行时重建的派生视图」。
+
+形态（对照 [session-format.md](../../../packages/coding-agent/docs/session-format.md)「SessionMessageEntry」）：
+
+```json
+{"type":"message","id":"a0b1c2d3","parentId":null,"timestamp":"...",
+ "message":{"role":"system","content":"","sections":{"preamble":"You are an expert...","tools":"<tools>...</tools>","cwd":"/project"},
+           "toolsAdded":[{"name":"read","description":"...","parameters":{}}],"timestamp":1733234400000}}
+```
+
+要点：
+
+- **首条 system 消息**：会话第一个请求前落盘，含完整 `sections`（提示词各命名段）与 `toolsAdded`（工具完整定义）。这是文件变大的主因——系统提示词（含 AGENTS.md 内容、skills 列表等）与每个工具的 name/description/parameters 都完整写进了 JSONL。
+- **后续变化**：提示词段改变（如 skills 更新）或工具集变化（扩展增删工具），追加新的 system 消息，用 `sections` 按名 patch（`null` 删除一段）、用 `toolsAdded`/`toolsRemoved` 列增删。
+- **重放即当前态**：按序重放所有 system 消息得到当前 prompt 与 tools，没有独立的 prompt 状态 entry。
+- **旧会话兼容**：system 消息出现之前创建的会话没有首条 system 消息；首次请求会把当前 prompt 作为「靠后的 system 消息」声明，重放结果一致。
+- **compaction 也变了**：`compaction` entry 新增 `systemMessage` 字段（压缩边界的完整 prompt/tool checkpoint），压缩后它成为 leading system message，保留区间内的旧 system 消息被它取代。
+
+为什么这样改，见 [dual-runtime-semantics.zh.md](dual-runtime-semantics.zh.md) 之外的动机——本质是「系统提示词和工具声明也纳入 append-only 事实源」：旧模型里它们是 JSONL 之外的内存状态，resume 时靠配置重建、无法追溯中途变化；新模型里它们和 user/assistant/toolResult 一样是树上的叶子，可重放、可追溯、可增可删。
 
 ## 概念层级：session / run / turn（持久层 vs 运行时）
 
@@ -314,7 +349,7 @@ Session 文件里没有 `message_start` / `message_update` / `message_end` 条�
 代码链路两处关键（2026-09-15 对照）：
 
 1. [agent.ts](../../../packages/agent/src/agent.ts) `processEvents`（L544 起）：`message_start` / `message_update` 只更新 `this._state.streamingMessage`；`message_end` 把 `streamingMessage` 清空并将消息 push 进 `_state.messages`。事件本身不进持久层。
-2. [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) `_handleAgentEvent`（L668 起）：`if (event.type === "message_end")` 时按 role 分派——`custom` → `appendCustomMessageEntry()`；`user` / `assistant` / `toolResult` → `sessionManager.appendMessage(event.message)`。最终写入的是 [session-manager.ts](../../../packages/coding-agent/src/core/session-manager.ts) `appendMessage()`（L1071 起）构造的 `SessionMessageEntry { type: "message", id, parentId, timestamp, message }`。
+2. [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) `_handleAgentEvent`（L689 起）：`if (event.type === "message_end")` 时按 role 分派——`custom` → `appendCustomMessageEntry()`；`system` / `user` / `assistant` / `toolResult` → `sessionManager.appendMessage(event.message)`（2026-09-19 起 system 也走这条路落盘）。最终写入的是 [session-manager.ts](../../../packages/coding-agent/src/core/session-manager.ts) `appendMessage()`（L1071 起）构造的 `SessionMessageEntry { type: "message", id, parentId, timestamp, message }`。
 
 推论两条：
 

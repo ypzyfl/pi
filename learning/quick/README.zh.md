@@ -7,7 +7,7 @@
 | 维度 | 深度方案（../learning-path.zh.md） | 快速通道（本目录） |
 |---|---|---|
 | 目标 | 源码级理解，能复述生命周期 | 快速跑起来 + 写出扩展 |
-| 范围 | 11 包全量 + 双运行时栈 | 6 个桌面端包，忽略 server/client/protocol |
+| 范围 | 12 包全量 + 双运行时栈 | 6 个桌面端包，忽略 server/client/protocol |
 | 节奏 | 七阶段，按序串行 | 五步，可跳跃 |
 | 产出 | 笔记/journal/questions 三层载体 | 可跑的扩展 + skill + prompt template |
 | 预计耗时 | 数周 | 2-4 小时 |

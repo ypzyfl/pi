@@ -87,17 +87,18 @@ export function agentLoop(
 
 ```typescript
 export async function runAgentLoop(...): Promise<AgentMessage[]> {
-	const newMessages: AgentMessage[] = [...prompts];
+	const initialMessages = declareToolChanges(context, prompts);
+	const newMessages: AgentMessage[] = [...initialMessages];
 	const currentContext: AgentContext = {
 		...context,
-		messages: [...context.messages, ...prompts],
+		messages: [...context.messages, ...initialMessages],
 	};
 
 	await emit({ type: "agent_start" });
 	await emit({ type: "turn_start" });
-	for (const prompt of prompts) {
-		await emit({ type: "message_start", message: prompt });
-		await emit({ type: "message_end", message: prompt });
+	for (const message of initialMessages) {
+		await emit({ type: "message_start", message });
+		await emit({ type: "message_end", message });
 	}
 
 	await runLoop(currentContext, newMessages, config, signal, emit, streamFn ?? getDefaultStreamFn());
@@ -107,10 +108,11 @@ export async function runAgentLoop(...): Promise<AgentMessage[]> {
 
 四个设计点：
 
-1. **两个消息集合分离**：`newMessages` 只记录**本轮新产生**的消息（最终返回值）；`currentContext.messages` 是**完整上下文**（历史 + prompts），喂给 LLM。前者回答「这次发生了什么」，后者回答「全部发生了什么」。
-2. **不可变更新**：`{ ...context, messages: [...] }` 复制而非原地 `push`，不污染调用方传入的 `context`。
-3. **事件时序**：`agent_start` → `turn_start` → 逐 prompt `message_start`/`message_end`。把用户 prompt 也当消息发出事件，让 UI 能显示「用户说了什么」。
-4. **`streamFn ?? getDefaultStreamFn()`**：依赖注入 + 默认值兜底，测试可注入 faux provider。
+1. **`declareToolChanges` 先行**（2026-09-19 起）：入口先调 `declareToolChanges(context, prompts)`，把「可执行工具集（`context.tools`）」与「transcript 中已声明的工具」的差异折算成 system 消息，产出 `initialMessages`——系统提示词与工具声明不再由 `context.systemPrompt`/`context.tools` 承载，而是随 transcript 的 system 消息走。
+2. **两个消息集合分离**：`newMessages` 只记录**本轮新产生**的消息（最终返回值）；`currentContext.messages` 是**完整上下文**（历史 + initialMessages），喂给 LLM。前者回答「这次发生了什么」，后者回答「全部发生了什么」。
+3. **不可变更新**：`{ ...context, messages: [...] }` 复制而非原地 `push`，不污染调用方传入的 `context`。
+4. **事件时序**：`agent_start` → `turn_start` → 逐 initialMessages `message_start`/`message_end`。把用户消息也当消息发出事件，让 UI 能显示「用户说了什么」。
+5. **`streamFn ?? getDefaultStreamFn()`**：依赖注入 + 默认值兜底，测试可注入 faux provider。
 
 ## runLoop 完整流程图（153-273）
 
@@ -183,7 +185,7 @@ flowchart TD
 
 ### ② 注入 pendingMessages
 
-把 steering / follow-up 消息在**下一次 LLM 调用前**写入上下文，同时写 `currentContext.messages`（喂 LLM）与 `newMessages`（返回值）。
+把 steering / follow-up 消息在**下一次 LLM 调用前**写入上下文，同时写 `currentContext.messages`（喂 LLM）与 `newMessages`（返回值）。2026-09-19 起注入前先经 `declareToolChanges` 折算工具负载差异（与入口同逻辑）。
 
 ### ③ 流式生成 assistant 回复
 

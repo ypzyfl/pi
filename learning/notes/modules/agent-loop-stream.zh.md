@@ -24,7 +24,7 @@ flowchart LR
     B2 --> C["convertToLlm<br/>(必需)"]
     B3 --> C
     C --> D["Message[]<br/>（LLM 可理解）"]
-    D --> E["llmContext = systemPrompt + messages + tools"]
+    D --> E["llmContext = normalizeContext({ messages })"]
     E --> F["getApiKey(可选)<br/>→ apiKey"]
     F --> G["streamFunction(model, llmContext, opts)"]
     G --> H["AssistantMessageEventStream"]
@@ -34,7 +34,7 @@ flowchart LR
 |---|---|---|
 | `transformContext` | 可选 | `AgentMessage[] → AgentMessage[]`，上下文窗口裁剪 / 外部上下文注入 |
 | `convertToLlm` | **必需** | `AgentMessage[] → Message[]`，**唯一**的边界转换，过滤 UI-only 消息 |
-| 构建 `llmContext` | 必需 | 组装 `systemPrompt + messages + tools` 三件套 |
+| 构建 `llmContext` | 必需 | `normalizeContext({ messages })` 归一化；系统提示词与工具声明已随 transcript 的 system 消息走 |
 | `getApiKey` | 可选 | 动态解析 API key（注释明言：为**会过期的 token**，如 GitHub Copilot） |
 | `streamFunction` | 必需 | 拿到 `AssistantMessageEventStream`，注入 `signal` 与解析后的 `apiKey` |
 

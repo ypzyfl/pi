@@ -150,7 +150,7 @@ runAgentLoop (agent-loop.ts, 双层 while)
  |    |  |       |                                                  |
  |    |  |       v                                                  |
  |    |  |  transformContext -> convertToLlm                         |
- |    |  |       |  (系统提示词 + 历史 + 工具 schema -> Message[])     |
+ |    |  |       |  (历史消息 -> Message[]；提示词/工具在 system 消息)  |
  |    |  |       v                                                  |
  |    |  |  streamFn -----> pi-ai streamSimple -----> provider       |
  |    |  |       |             (统一 API, 词汇转换)     (OpenAI/      |

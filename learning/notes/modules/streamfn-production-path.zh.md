@@ -27,7 +27,7 @@ flowchart TD
         direction TB
         n1["transformContext?<br/>AgentMessage[] → AgentMessage[]"]
         n2["convertToLlm<br/>AgentMessage[] → Message[]"]
-        n3["llmContext = systemPrompt + messages + tools"]
+        n3["llmContext = normalizeContext({ messages })"]
         n4["getApiKey?(provider)<br/>→ resolvedApiKey"]
         n5["streamFunction(model, llmContext,<br/>{...config, apiKey, signal})"]
         n1 --> n2 --> n3 --> n4 --> n5

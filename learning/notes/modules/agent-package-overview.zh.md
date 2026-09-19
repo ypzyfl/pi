@@ -26,6 +26,8 @@ pi 的 agent 运行时核心包（npm 名 `@earendil-works/pi-agent-core`），�
 | `proxy.ts` | 代理流函数：`streamProxy` 供浏览器应用经后端代理调 LLM，客户端重建 partial |
 | `search/index.ts` | 搜索服务契约：`SessionSearchService` / `SearchQuery` / 命中类型（纯接口） |
 
+（2026-09-19 版本对齐：`harness/` 下新增 `pico3/` 实验性子系统，经 package.json 的 `./experimental/pico3` 子路径导出，不并入 `index.ts` 顶层 export。）
+
 ## 关键实体（逐个链接到 home）
 
 - `Agent`：有状态包装 → [agent.ts](../../../packages/agent/src/agent.ts)

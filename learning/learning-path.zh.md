@@ -40,7 +40,7 @@
 
 **pi 是什么**：Pi Agent Harness——自扩展（self-extensible）编码 agent 的 monorepo。信条「最小核心 + 通过扩展长大」（[CONTRIBUTING.md](../CONTRIBUTING.md)）：核心只保留 runtime 与少量内置工具，一切增值能力（工具、命令、事件钩子、UI、技能、提示词、主题）通过 TypeScript extension / skill / prompt template / pi package 外挂。抓三条主线：
 
-1. **静态视角**：11 个 npm workspace 包，依赖拓扑分层（谁建在谁之上）。
+1. **静态视角**：12 个 npm workspace 包，依赖拓扑分层（谁建在谁之上）。
 2. **运行视角**：coding-agent 把 agent 运行时 + 内置工具 + 会话管理装配成产品；agent 包驱动回合循环——组装请求 → 调模型 → 执行工具 → 结果落会话 JSONL → 判断是否继续（阶段 3 深入）。
 3. **扩展视角**：所有增值能力是外挂资源，不打补丁不改核心；`.pi/` 目录就是本仓库用 pi 开发 pi 的实例（阶段 5 深入）。
 
@@ -63,6 +63,8 @@ flowchart TB
     AGENT --> TELEMETRY
     AI["ai（模型层）<br/>统一多 provider LLM API · 生成式模型目录"]
     AI --> TELEMETRY
+    DURABLE["durable<br/>Pico 持久化运行时"] --> AI
+    DURABLE --> CHORD
     TUI["tui（独立 UI 库）<br/>差分渲染 · 组件模型"]
     CHORD["chord（地基）<br/>services · replicated state · RPC · plugins"]
     TELEMETRY["telemetry（地基）<br/>厂商中立遥测契约"]
@@ -72,6 +74,7 @@ flowchart TB
 
 - **chord / telemetry（地基）**：chord 是应用组合运行时（服务、复制状态、RPC、插件），几乎被所有上层包依赖；telemetry 定义厂商中立的遥测契约。
 - **ai（模型层）**：把 OpenAI / Anthropic / Google 等多 provider 抹平成一个 API——统一的消息与流式词汇、工具 schema、自动模型发现（`models.generated.ts` 由脚本生成，AGENTS.md 红线：不可手改）。
+- **durable**：Pico 持久化运行时（conversation / task / document 的 durable record 契约 + 内存存储实现）；当前独立发布、无包依赖它，设计文档见 `packages/durable/docs/pico-v5.md`。
 - **agent（运行时核心）**：通用 agent runtime——`agent-loop.ts` 回合驱动、`agent.ts` 有状态包装、`harness/` 大子系统（会话存储、执行、运行时驱动、压缩、工具管线）。
 - **coding-agent（产品层）**：面向终端用户的编码 agent——`AgentSession` 组装中枢、内置工具（read / bash / powershell / edit / write / grep / find / ls）、会话管理与分支、设置与信任、扩展/技能/提示词加载、三种运行模式。
 - **tui（独立 UI 库）**：差分渲染的终端 UI 库，被 coding-agent 的 interactive 模式消费。
@@ -83,7 +86,7 @@ flowchart TB
 
 1. 用户经 interactive（tui）或 rpc / print 模式输入消息。
 2. coding-agent 的 `AgentSession` 接收，消息 append 进会话 JSONL（会话文件是事实源）。
-3. agent 运行时组装请求（系统提示词 + 历史 + 工具 schema），经 ai 统一 API 调 provider，流式响应回来。
+3. agent 运行时组装请求（历史消息，含 system 消息承载的提示词与工具声明），经 ai 统一 API 调 provider，流式响应回来。
 4. 工具调用分批执行（内置工具或 extension 注册的工具），结果 append 进会话；若仍有未完成的工具请求则进入下一 step，否则 turn 结束。
 5. 全程 JSONL 只增不改（append + `parentId` 分支）；resume、compaction、导出都是在这棵树上做投影或改写。
 
@@ -110,7 +113,7 @@ flowchart TB
 
 1. `npm install --ignore-scripts`，然后 `npm run check` 与 `./test.sh`（test.sh 自建隔离环境，无 key 跳过 LLM 相关测试）。
 2. 锚点实验（见 plan/stage-1.zh.md 第 0 步）。
-3. 对照根 [package.json](../package.json) 的 `build` 脚本顺序（chord → tui → telemetry → ai → agent → session-backends/sqlite-node → protocol → client → server → coding-agent）与各包 package.json 的 workspace 依赖，亲手画出依赖拓扑，与本文分层鸟瞰互相印证。
+3. 对照根 [package.json](../package.json) 的 `build` 脚本顺序（chord → tui → telemetry → ai → durable → agent → session-backends/sqlite-node → protocol → client → server → coding-agent）与各包 package.json 的 workspace 依赖，亲手画出依赖拓扑，与本文分层鸟瞰互相印证。
 
 ### 过关检验
 
@@ -241,7 +244,7 @@ flowchart TB
 
 | 阶段 | 完成标志（可逐条勾选） |
 |---|---|
-| 1 | ① `npm install --ignore-scripts` / `npm run check` / `./test.sh` 在本机通过；② 能不看资料画出 11 包依赖拓扑（至少 chord / telemetry / tui / ai / agent / coding-agent 六个关键包的位置与依赖边）；③ 锚点实验完成：能找到自己的会话文件并说出 SessionHeader / 消息 entry / toolResult entry 三类基本结构；④ 能用自己的话复述五个核心术语（AgentSession / agent loop / harness / extension / skill）；⑤ 能凭记忆复述一条消息穿过各层的路径 |
+| 1 | ① `npm install --ignore-scripts` / `npm run check` / `./test.sh` 在本机通过；② 能不看资料画出 12 包依赖拓扑（至少 chord / telemetry / tui / ai / agent / coding-agent 六个关键包的位置与依赖边）；③ 锚点实验完成：能找到自己的会话文件并说出 SessionHeader / 消息 entry / toolResult entry 三类基本结构；④ 能用自己的话复述五个核心术语（AgentSession / agent loop / harness / extension / skill）；⑤ 能凭记忆复述一条消息穿过各层的路径 |
 | 2 | ① 能复述一次模型调用的统一数据流（request → 流式事件 → 聚合 message）；② 能解释 `models.generated.ts` 的生成链路与「不可手改」规则，说出改模型目录的正确入口（`generate-models.ts`）；③ 能指出新增自定义模型 / 自定义 provider 的文档入口 |
 | 3 | ① 通过三项前置检查（事实源 / append-only + 分支 / 改动落点，见阶段 3 原文）；② 能对照源码复述一次 turn 的完整生命周期与继续条件；③ 能说出 `harness/` 各子目录职责一句话；④ 能对「agent-loop 与 AgentHarness 的关系」给出源码级裁决（并回填 questions.zh.md） |
 | 4 | ① 能画出 AgentSession 组装图（哪些服务被注入、谁拥有谁的生命周期）；② 能列出全部内置工具并说出 edit 的安全设计；③ 能说出 interactive / rpc / print 三种模式的差异与入口文件；④ 能复述会话分支与树导航模型，并做过一次「UI 分支操作 → JSONL 落点」对照 |

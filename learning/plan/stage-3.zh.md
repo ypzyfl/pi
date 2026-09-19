@@ -24,7 +24,7 @@
 目标：先拿到 agent 包的骨架——顶层文件各自职责、harness/ 子目录一撇、README 的嵌入者叙事——再进逐文件精读。
 
 - [x] 盘点 [packages/agent/src](../../packages/agent/src) 顶层七文件 + `search/` 目录（计划原写「八文件」有误，实际 7 个 .ts + 1 个子目录），各记一句话职责：`index.ts`（出口）、`agent-loop.ts`（回合驱动）、`agent.ts`（有状态包装）、`types.ts`（词汇）、`stream-fn.ts`（默认流函数）、`node.ts` / `proxy.ts`（运行环境出口）、`search/`（搜索服务契约）
-- [x] 盘点 [packages/agent/src/harness](../../packages/agent/src/harness) 结构：顶层 12 个文件（`agent-harness.ts` / `context.ts` / `events.ts` / `hooks.ts` / `messages.ts` / `system-prompt.ts` / `skills.ts` / `prompt-templates.ts` + `config.ts` / `result.ts` / `telemetry.ts` / `types.ts`）与七个子目录（`session/` / `execution/` / `runtime/`（含 `drive/`）/ `compaction/` / `tools/` / `env/` / `utils/`）；对照 [dual-runtime-semantics.zh.md](../notes/mechanisms/dual-runtime-semantics.zh.md) 确认：`compaction/` 必读，`runtime/`（含 `drive/`）/ `session/` / `execution/` 属 durable 栈延后
+- [x] 盘点 [packages/agent/src/harness](../../packages/agent/src/harness) 结构：顶层 12 个文件（`agent-harness.ts` / `context.ts` / `events.ts` / `hooks.ts` / `messages.ts` / `system-prompt.ts` / `skills.ts` / `prompt-templates.ts` + `config.ts` / `result.ts` / `telemetry.ts` / `types.ts`）与八个子目录（`session/` / `execution/` / `runtime/`（含 `drive/`）/ `compaction/` / `tools/` / `env/` / `utils/` / `pico3/`（2026-09-19 合并新增，实验性））；对照 [dual-runtime-semantics.zh.md](../notes/mechanisms/dual-runtime-semantics.zh.md) 确认：`compaction/` 必读，`runtime/`（含 `drive/`）/ `session/` / `execution/` 属 durable 栈延后
 - [x] [packages/agent/README.md](../../packages/agent/README.md) 通读一遍（517 行，嵌入者视角），重点：Quick Start、Core Concepts（AgentMessage vs LLM Message、Message Flow）、Event Flow（prompt()/continue() 事件序列）、Agent Options / State / Methods、Steering and Follow-up、Low-Level API
 - [x] 用一句话回答：README 的「嵌入者」是谁（写 coding-agent 的人），它怎么描述「谁驱动循环、状态放哪、怎么调 LLM」？
 
@@ -34,8 +34,8 @@
 
 - [x] `StreamFn`：签名与契约（不抛错、失败编码进流事件 + 最终 stopReason "error"/"aborted"）
 - [x] `AgentMessage` / `AgentState`：自定义消息扩展（`CustomAgentMessages` 声明合并）、`AgentState` 的 accessor 复制语义（`tools` / `messages` 赋值即拷贝）
-- [x] `AgentContext`（systemPrompt + messages + tools）与 `AgentLoopConfig`（convertToLlm / transformContext / getApiKey / shouldStopAfterTurn / prepareNextTurn / getSteeringMessages / getFollowUpMessages / beforeToolCall / afterToolCall / toolExecution）
-- [x] `AgentTool`（label / prepareArguments / execute / replay / executionMode）与 `AgentToolResult`（content / details / usage / addedToolNames / terminate）
+- [x] `AgentContext`（messages + tools；`systemPrompt` 字段已于 2026-09-19 删除，改由 transcript 的 system 消息承载）与 `AgentLoopConfig`（convertToLlm / transformContext / getApiKey / shouldStopAfterTurn / prepareNextTurn / getSteeringMessages / getFollowUpMessages / beforeToolCall / afterToolCall / toolExecution）
+- [x] `AgentTool`（label / prepareArguments / execute / replay / executionMode）与 `AgentToolResult`（content / details / usage / terminate；`addedToolNames` 字段已于 2026-09-19 删除，工具声明改为经 transcript 的 system 消息动态声明）
 - [x] `AgentEvent` 全集：三类生命周期——agent（`agent_start` / `agent_end`）、turn（`turn_start` / `turn_end`）、message（`message_start` / `message_update` / `message_end`）、tool（`tool_execution_start` / `tool_execution_update` / `tool_execution_end`）
 - [x] `ToolExecutionMode`（sequential / parallel）与 `QueueMode`（all / one-at-a-time）两种枚举的语义
 - [x] 浏览 [stream-fn.ts](../../packages/agent/src/stream-fn.ts)、[node.ts](../../packages/agent/src/node.ts)、[proxy.ts](../../packages/agent/src/proxy.ts)、[index.ts](../../packages/agent/src/index.ts)：默认流函数从哪来、node/proxy 两个出口差异、`index.ts` 公开导出哪些符号（确认 `AgentHarness` 是否在列，为第 5 步备料）

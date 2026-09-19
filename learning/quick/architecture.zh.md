@@ -156,7 +156,7 @@ flowchart LR
     U["用户输入"] -->|interactive/rpc/print| TUI["TUI 渲染"]
     TUI --> AS["AgentSession"]
     AS -->|append 用户消息| SF["会话文件<br/>~/.pi/agent/sessions/"]
-    AS -->|从会话树投影<br/>+系统提示词+工具 schema| AG["Agent"]
+    AS -->|从会话树投影<br/>（含 system 消息的提示词与工具声明）| AG["Agent"]
     AG -->|请求（派生视图，不新增存储）| AI["ai.streamSimple"]
     AI -->|流式响应| AG
     AG -->|append assistant 消息<br/>thinking / text / toolCall| SF
@@ -174,14 +174,14 @@ flowchart LR
 |---|---|---|---|
 | 1 | 用户经 interactive（TUI）或 rpc/print 输入消息 | coding-agent 的 modes 入口 | — |
 | 2 | AgentSession 接收，**用户消息** append 进会话 JSONL | `~/.pi/agent/sessions/` 下的 `.jsonl` | ✅ user entry |
-| 3 | 从会话树投影出消息历史，连同系统提示词与工具 schema 组装成请求，经 ai 调 provider | agent-loop.ts + ai streamSimple | ❌ 派生视图 |
+| 3 | 从会话树投影出消息历史（含 system 消息承载的提示词与工具声明），组装成请求，经 ai 调 provider | agent-loop.ts + ai streamSimple | ❌ 派生视图 |
 | 4 | 模型流式响应回来，**assistant 消息**（thinking / text / toolCall 块）append 进会话 | agent-loop.ts + session-manager | ✅ assistant entry |
 | 5 | 工具调用分批执行（内置或扩展注册），结果 append 进会话 | tools/ + ExtensionRunner | ✅ toolResult entry |
 | 6 | 若仍有未完成工具请求则进下一 step，否则 turn 结束 | agent-loop.ts 停止条件 | — |
 
 **关键不变量**：会话 JSONL 是事实源（append-only + parentId 分支成树），内存 transcript 是运行时真相，二者并行。
 
-**为什么"发给模型的请求"不落盘**：请求 payload 是**派生视图**——消息数组由会话树沿路径投影（`buildSessionContext()`），系统提示词与工具 schema 每次运行时重新组装。三者都不含新事实（源头数据已在 JSONL），再存一份既冗余，又会因系统提示词/工具 schema 随版本与扩展变化而失真。**JSONL 只存不可推导的事实，可推导的不存**：用户消息、assistant 消息、toolResult 是输入/输出本身，故落盘；消息数组与请求是它们的投影，故不落盘。完整 entry 类型见 [session-format.md](../../packages/coding-agent/docs/session-format.md)。
+**为什么"发给模型的请求"不落盘**：请求 payload 是**派生视图**——消息数组由会话树沿路径投影（`buildSessionContext()`），它不含新事实（源头 entry 已在 JSONL），再存一份既冗余，又会因系统提示词/工具声明随版本与扩展变化而失真。**JSONL 只存不可推导的事实，可推导的不存**：用户消息、assistant 消息、toolResult、system（提示词+工具声明）是输入/输出本身，故落盘；消息数组与请求是它们的投影，故不落盘。完整 entry 类型见 [session-format.md](../../packages/coding-agent/docs/session-format.md)。
 
 ### 数据落盘总表
 
@@ -190,6 +190,8 @@ flowchart LR
 | 数据 | entry 形态 | 落盘时机 | 为什么必须落盘 | 进 LLM 上下文 |
 |---|---|---|---|---|
 | 会话元数据 | `session`（首行 header） | 创建会话时 | 版本 / cwd / session-id 无法从其他数据推导 | 否 |
+| 系统提示词 | `message` role=`system`（`content` + `sections`） | 首个请求前 / 提示词变化时 | 模型看到的提示词是事实；重放 system 消息得到当前 prompt | 是 |
+| 工具声明 | `message` role=`system`（`toolsAdded`/`toolsRemoved`） | 工具集变化时 | 模型可调用的工具集是事实；重放得到当前 tools | 是 |
 | 用户消息 | `message` role=`user` | 用户提交后 | 输入事实，只此一份 | 是 |
 | 模型回复 | `message` role=`assistant`（thinking / text / toolCall 块） | 流式响应结束 | 输出事实，含 usage / stopReason，无法重建 | 是 |
 | 工具结果 | `message` role=`toolResult` | 工具执行完成 | 端侧产生的事实；靠 `toolCallId` 与调用配对 | 是 |
@@ -208,8 +210,6 @@ flowchart LR
 | 数据 | 为什么不需要落盘 |
 |---|---|
 | 请求 payload（消息数组） | 由会话树沿路径投影（`buildSessionContext()`）；源头 entry 已落盘 |
-| 系统提示词 | 每次运行时从 AGENTS.md + 模板 + 扩展重建；随版本 / 扩展变化 |
-| 工具 schema | 从工具注册表重建；随扩展增删变化 |
 | 内存 transcript（`_state.messages`） | 运行时真相，与 JSONL 并行；重启时从 JSONL 重建 |
 | run / turn 结构 | 可从树推导：新 run 起点是 `role: user` entry，turn 边界看 `stopReason` |
 | 事件流（`agent_start` / `turn_start` / `message_update` / `tool_execution_*` …） | 运行时观察接口，不是持久事实 |
@@ -218,7 +218,7 @@ flowchart LR
 | **slash 命令执行**（如扩展 `registerCommand` 的 `/hello`） | 端侧 handler 直接执行、不发往模型，不产生 message；要留痕须 handler 显式调 `pi.appendEntry()` |
 | **扩展与工具的注册定义** | 每次启动从扩展 / 内置工具重建；定义本身不是事实，只有调用结果（toolResult）落盘 |
 
-**一句话总结**：JSONL 存"不可推导的事实"（输入 / 输出 / 元数据）；请求、提示词、schema、run/turn、事件、UI 都是这些事实的投影或运行时派生，一律不落盘。注意**落盘 ≠ 进上下文**——两者独立：`custom` / `model_change` / `label` 落盘但不进上下文，`!!` 命令落盘但排除出上下文。
+**一句话总结**：JSONL 存"不可推导的事实"（输入 / 输出 / 元数据，2026-09-19 起含系统提示词与工具声明）；请求、run/turn、事件、UI 都是这些事实的投影或运行时派生，一律不落盘。注意**落盘 ≠ 进上下文**——两者独立：`custom` / `model_change` / `label` 落盘但不进上下文，`!!` 命令落盘但排除出上下文。
 
 **slash 命令不落盘（易踩坑）**：输入 `/hello` 这类命令时，它由端侧 handler 直接执行（`ctx.ui.notify` 等），**不发给模型、不产生 message、不写 JSONL**，所以"命令执行过"在会话文件里查不到。对照铁证：若扩展尚未加载，`/hello` 会被当作**普通文本**发给模型（于是落盘成 `user` entry）；扩展生效后走命令通道，就再无 entry。内置命令只有产生元数据的那几个（`/model` → `model_change`、`/thinking` → `thinking_level_change`、`/name` → `session_info`、`/compact` → `compaction`、`/tree` 分支 → `branch_summary`）会在 JSONL 留痕，其余（`/help`、`/reload`）纯 UI 不落盘。
 

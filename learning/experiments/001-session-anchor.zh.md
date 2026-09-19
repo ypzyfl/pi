@@ -50,6 +50,7 @@ session(首行，无 parentId) → model_change(v4-pro) → thinking_level_chang
 
 - 分支语义未实测：`/tree` / fork 时新 entry 的 `parentId` 如何指向非链尾节点、`branch_summary` entry 如何参与。归 [questions.zh.md](../questions.zh.md) Q5。
 - 补验会话来自安装版 pi，非本 fork 源码；如需完全同源证据，可随时用 `.\pi-test.ps1` 跑一轮带工具调用的对话复验（格式同版本，结论不受影响）。
+- 版本演进（2026-09-19）：本实验记录的两份会话文件均建于 system 消息出现之前，entry 链从 user 起。新版本会话首条为 system 消息（承载提示词 + 工具声明），文件显著变大；id/parentId 链与 toolCall ↔ toolCallId 关联等核心结论不变。详见 [session-message-flow.zh.md](../notes/mechanisms/session-message-flow.zh.md)「system 消息落盘」。
 
 ## 引用
 
