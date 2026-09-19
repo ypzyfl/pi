@@ -8,7 +8,7 @@
 |---|---|
 | [learning-path.zh.md](learning-path.zh.md) | 深度方案：读什么、按什么顺序（七阶段 + 入门锚点实验） |
 | [quick/](quick/README.zh.md) | 快速通道：2-4 小时上手扩展开发（五步速通，聚焦桌面端，忽略远程会话轴） |
-| `plan/` | 各阶段执行路线与逐步勾选进度，见 [plan/stage-1.zh.md](plan/stage-1.zh.md)、[plan/stage-2.zh.md](plan/stage-2.zh.md) |
+| `plan/` | 各阶段执行路线与逐步勾选进度，见 [plan/stage-1.zh.md](plan/stage-1.zh.md)、[plan/stage-2.zh.md](plan/stage-2.zh.md)、[plan/stage-3.zh.md](plan/stage-3.zh.md) |
 | [method.zh.md](method.zh.md) | 学习方法：宪法、目录规则、记录方式（journal 两级 / questions 三态 / map 两级）、笔记模板 |
 | [questions.zh.md](questions.zh.md) | 开放问题池（三态流转；初始六问来自建区勘察） |
 | [map.zh.md](map.zh.md) | 认知地图（整体心智模型快照；初始版含已验证的依赖拓扑图） |
@@ -40,11 +40,23 @@
 | [notes/architecture/agent-vs-harness.zh.md](notes/architecture/agent-vs-harness.zh.md) | 产品是 agent、仓库是 harness：构成等式（LLM + 工具 + loop）只占全仓约 0.5–17%，其余是 harness |
 | [notes/architecture/pi-architecture-overview.zh.md](notes/architecture/pi-architecture-overview.zh.md) | 架构级认知总览：设计理念五信条、11 包分层（ASCII / mermaid / 邻接表三投影）、运行时双栈、消息生命周期、AgentSession 组装、会话树、扩展体系 |
 | [notes/architecture/classic-stack-overview.zh.md](notes/architecture/classic-stack-overview.zh.md) | 经典内存栈（生产路径）聚焦视图：6 包依赖、静态结构、数据流与事件流、AgentSession 组装、会话树、工具与 edit 安全设计、三模式、扩展体系、关键文件速查——学习主线文档 |
+| [notes/architecture/pi-security-model.zh.md](notes/architecture/pi-security-model.zh.md) | pi 安全模型：七层输入守卫（执行权限/代码信任/项目信任/工具可见性/工具拦截/凭据/子智能体）+ 零内置沙箱、无内置沙箱的设计哲学、四种容器化隔离模式 |
 | [notes/mechanisms/session-message-flow.zh.md](notes/mechanisms/session-message-flow.zh.md) | 一次「一问两调一答」对话在会话 JSONL 里的完整 entry 链与工具调用关联（含基础 / 全量两图） |
 | [notes/mechanisms/test-isolation.zh.md](notes/mechanisms/test-isolation.zh.md) | 测试隔离：e2e 激活开关是环境变量与 auth.json 两条钥匙入口，test.sh 双层堵死；check 验「形」、test.sh 验「行」 |
 | [notes/mechanisms/contribution-gate.zh.md](notes/mechanisms/contribution-gate.zh.md) | 贡献门槛：auto-close 是三个 workflow + 白名单文件的机器执行；lgtmi/lgtm 能力不对称由代码强制、审批状态进 git |
 | [notes/mechanisms/dual-runtime-semantics.zh.md](notes/mechanisms/dual-runtime-semantics.zh.md) | 双栈语义：经典内存栈「先做事后记账」（内存即真相，JSONL 是旁路日志）vs durable 持久化栈「先记账再做事」（accept/drive 操作状态机）；durable 已发布、按场景分工、无替换承诺 |
 | [notes/mechanisms/test-sh-on-windows.zh.md](notes/mechanisms/test-sh-on-windows.zh.md) | test.sh 在 Windows：Git Bash 是唯一入口（勿用 WSL bash）；MSYS 对 HOME/USERPROFILE 转换不对称破坏 ~/ 缩写；rolldown 截断诊断案例；套件失败四分类 |
+| [notes/mechanisms/event-stream.zh.md](notes/mechanisms/event-stream.zh.md) | EventStream 异步流原语（重点学习篇）：双栈 FIFO、push/消费/终结三态、result 幂等提取、无背压取舍、AssistantMessageEventStream 特化、agent-loop 两处使用 |
+| [notes/mechanisms/abort-signal.zh.md](notes/mechanisms/abort-signal.zh.md) | AbortSignal 机制：控制者（AbortController.abort）与感知者（监听/轮询）单向信号链、raceWithAbortSignal 三重竞态防护、provider 层统一 aborted/error、abort 永不重试、两个 abort.ts 复制适配 |
+| [notes/modules/agent-package-overview.zh.md](notes/modules/agent-package-overview.zh.md) | agent 包骨架：顶层七文件 + search 职责、README 嵌入者叙事、observational vs barrier、convertToLlm 唯一桥接（阶段 3 第 1 步） |
+| [notes/modules/agent-loop.zh.md](notes/modules/agent-loop.zh.md) | agent-loop.ts 精读：四入口 2×2 组合、双层 while 两种「继续」、事件序列、工具三段式、停止/继续条件、错误通道辨析、runAgentLoop vs agentLoop 搜证（阶段 3 第 2/3 步） |
+| [notes/modules/agent-loop-runloop.zh.md](notes/modules/agent-loop-runloop.zh.md) | runLoop 深度解析：完整流程图 + 节点解释、三条退出路径、一次 runLoop 的粒度（session/run/turn）、steering/follow-up 四条分类来源 |
+| [notes/modules/agent-loop-stream.zh.md](notes/modules/agent-loop-stream.zh.md) | streamAssistantResponse 深度解析：唯一 LLM 调用边界、五准备阶段、流式事件三分支、partial 活对象与原地替换等六设计点 |
+| [notes/modules/agent-loop-tool-execution.zh.md](notes/modules/agent-loop-tool-execution.zh.md) | 工具执行管线：入口决策（脏批降级）、三段式、sequential 单车道 vs parallel 两阶段（惰性 thunk、完成序 vs 消息序分离、terminate 语义） |
+| [notes/modules/streamfn-production-path.zh.md](notes/modules/streamfn-production-path.zh.md) | 生产路径 streamFn 装配链：六层调用链（sdk → ModelRuntime → lazyStream → prepareRequest → provider）、归因头、两级 key 解析、三个 provider 扩展钩子 |
+| [notes/modules/extension-hooks.zh.md](notes/modules/extension-hooks.zh.md) | 扩展 hook 点梳理：一个完整会话中扩展可介入的 4 边界层（输入/agent/工具/provider）、观察/可修改/拦截三类能力、事件接线位置 |
+| [notes/modules/extension-capabilities.zh.md](notes/modules/extension-capabilities.zh.md) | 扩展能力全景：1 个被动补丁层（hook）+ 5 条主动轴（注入/驱动/重配/生命周期/UI 协作）、子智能体靠 registerTool+spawn、会话生命周期权限分层 |
+| [notes/modules/extension-human-approval.zh.md](notes/modules/extension-human-approval.zh.md) | 人工审批与暂停等待机制：pi 故意不内置 permission popups、async handler+await ctx.ui 隐式暂停、tool_call 审批点、json/print 自动拒绝、signal/timeout 取消 |
 
 ## 进度看板
 
@@ -55,7 +67,7 @@
 | 0 | 会话锚点（入门第一步，先于阶段 1） | 完成 | [experiments/001-session-anchor.zh.md](experiments/001-session-anchor.zh.md)（实验 2026-09-07，补录 2026-09-08；工具调用关联用历史会话补验） |
 | 1 | 仓库结构与工具链 | 完成（2026-09-12） | 执行路线见 [plan/stage-1.zh.md](plan/stage-1.zh.md)，六步与过关检验全过；三份根文档精读产出（[journal 2026-09-08-01](journal/2026-09-08-01-readme-harness.zh.md)、[agent-vs-harness](notes/architecture/agent-vs-harness.zh.md)、[test-isolation](notes/mechanisms/test-isolation.zh.md)、[contribution-gate](notes/mechanisms/contribution-gate.zh.md)、[AGENTS.zh.md](AGENTS.zh.md) / [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md) 两份对照）；第 2 步文档地图、第 3 步工具链（[test-sh-on-windows](notes/mechanisms/test-sh-on-windows.zh.md)）、第 4 步依赖拓扑（[map.zh.md](map.zh.md)「依赖拓扑」分层修正版）；第 5 步 .pi/ 盘点由用户自行完成，无落盘产出 |
 | 2 | ai 包：统一 LLM API | 进行中 | 执行路线见 [plan/stage-2.zh.md](plan/stage-2.zh.md)（2026-09-12 建路：六步，观察先行） |
-| 3 | agent 包：运行时核心 | 未开始 | — |
+| 3 | agent 包：运行时核心 | 进行中 | 执行路线见 [plan/stage-3.zh.md](plan/stage-3.zh.md)（2026-09-14 建路：六步，loop 先行）；第 1 步骨架盘点落盘 [notes/modules/agent-package-overview.zh.md](notes/modules/agent-package-overview.zh.md) |
 | 4 | coding-agent：产品装配 | 未开始 | — |
 | 5 | 扩展体系 | 未开始 | — |
 | 6 | 扩展实践 | 未开始 | — |
