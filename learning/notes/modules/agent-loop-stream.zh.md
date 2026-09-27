@@ -1,20 +1,20 @@
 # streamAssistantResponse 深度解析：唯一 LLM 调用边界
 
-状态：草稿（2026-09-17 对照 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) 275-370 行，以及 [event-stream.ts](../../../packages/ai/src/utils/event-stream.ts) 的 `AssistantMessageEventStream`、[types.ts](../../../packages/ai/src/types.ts) 的 `AssistantMessageEvent` 协议与 `StreamFn` 契约；五阶段、三分支、六设计点均逐点对照源码）
+状态：草稿（2026-09-17 对照 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) 380-466 行，以及 [event-stream.ts](../../../packages/ai/src/utils/event-stream.ts) 的 `AssistantMessageEventStream`、[types.ts](../../../packages/ai/src/types.ts) 的 `AssistantMessageEvent` 协议与 `StreamFn` 契约；五阶段、三分支、六设计点均逐点对照源码）
 
 本文是 [agent-loop.zh.md](agent-loop.zh.md)（四入口、双层 while、事件序列概览）的姊妹篇，聚焦 `streamAssistantResponse` 这一个函数——它是 agent loop **心脏中的心脏**：全 loop 唯一调用 LLM 的地方，也是「`AgentMessage[] → Message[]` 只在 LLM 调用边界转换」的唯一发生地。
 
 ## 事实源（链接，不复述）
 
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`streamAssistantResponse` 在 275-370 行）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`streamAssistantResponse` 在 380-466 行）
 - [event-stream.ts](../../../packages/ai/src/utils/event-stream.ts)（`EventStream` 泛型类、`AssistantMessageEventStream` 构造、`result()` 定义）
-- [types.ts](../../../packages/ai/src/types.ts)（`AssistantMessageEvent` 协议 L546-562、`partial` 语义注释 L531-545、`StreamFn` 契约 L326-331）
+- [types.ts](../../../packages/ai/src/types.ts)（`AssistantMessageEvent` 协议 L732-748、`partial` 语义注释 L716-731、`StreamFn` 契约 L353-363）
 
 ## 它是什么（≤5 句）
 
 `streamAssistantResponse` 输入 `context` + `config`，返回最终的 `AssistantMessage`，同时产生两个副作用：① 把最终消息写入 `context.messages`（原地 push 或替换最后一条）；② 发出消息生命周期事件（`message_start` / `message_update` / `message_end`）。它把 provider 的**流式协议事件**折叠成**一条 assistant 消息 + 消息生命周期事件**，是流协议与消息模型的唯一对接点。函数无 `try/catch`，完全信任 `StreamFn` 的「不抛错」契约。
 
-## 调用前的五个准备阶段（286-310）
+## 调用前的五个准备阶段（387-406）
 
 ```mermaid
 flowchart LR
@@ -40,11 +40,11 @@ flowchart LR
 
 `getApiKey` 的兜底值得注意：`(await getApiKey(...)) || config.apiKey`——先尝试动态获取，拿不到再回落静态 `config.apiKey`。
 
-## 流式事件处理的三个分支（312-369）
+## 流式事件处理的三个分支（411-465）
 
-`AssistantMessageEvent` 协议（[types.ts](../../../packages/ai/src/types.ts) L546-562）分四类：`start`、三种块的增量（`text_*` / `thinking_*` / `toolcall_*`）、`done`、`error`。`streamAssistantResponse` 把它们映射为三个分支。
+`AssistantMessageEvent` 协议（[types.ts](../../../packages/ai/src/types.ts) L732-748）分四类：`start`、三种块的增量（`text_*` / `thinking_*` / `toolcall_*`）、`done`、`error`。`streamAssistantResponse` 把它们映射为三个分支。
 
-### 分支 1：`start`（317-322）—— 建立占位
+### 分支 1：`start`（413-418）—— 建立占位
 
 ```typescript
 case "start":
@@ -57,7 +57,7 @@ case "start":
 
 拿到 partial（空骨架 assistant 消息），**push** 进 `context.messages`，标记 `addedPartial`，发 `message_start`。
 
-### 分支 2：九个增量事件（324-342）—— 原地替换
+### 分支 2：九个增量事件（420-438）—— 原地替换
 
 ```typescript
 case "text_start": case "text_delta": case "text_end":
@@ -73,7 +73,7 @@ case "toolcall_start": case "toolcall_delta": case "toolcall_end":
 
 九种增量事件**统一处理**，关键动作是 `context.messages[last] = partialMessage` 的**原地替换**——不 push 新消息，只更新上下文末尾那条 assistant 消息的内容。
 
-### 分支 3：`done` / `error`（344-357）—— 定稿返回
+### 分支 3：`done` / `error`（440-453）—— 定稿返回
 
 ```typescript
 case "done":
@@ -94,7 +94,7 @@ case "error": {
 
 `done` 和 `error` 共用同一分支，因为两者都是终结：拿 `result()` 定稿、写入上下文、发 `message_end`、返回。
 
-### 兜底路径（361-369）
+### 兜底路径（457-465）
 
 `for await` 循环**自然耗尽**（没遇到 `done`/`error`）时，还有一段几乎相同的收尾逻辑——防御性地再调 `result()` 定稿。正常流不会走到这里（终结事件必触发 return），但作为安全网存在。
 
@@ -102,7 +102,7 @@ case "error": {
 
 ### 1. `partial` 是「活对象」而非「事件快照」
 
-这是理解整段代码的钥匙。[types.ts](../../../packages/ai/src/types.ts) L539-540 的注释明说：
+这是理解整段代码的钥匙。[types.ts](../../../packages/ai/src/types.ts) L725-726 的注释明说：
 
 > *`partial` is the shared live response-so-far helper, not an event-time snapshot.*
 
@@ -114,7 +114,7 @@ case "error": {
 
 ### 3. `addedPartial` 标志：区分 push 还是替换
 
-[types.ts](../../../packages/ai/src/types.ts) L533-535 给了理由：
+[types.ts](../../../packages/ai/src/types.ts) L720-721 给了理由：
 
 > *A stream may terminate directly with `error` when request setup fails before generation starts.*
 
@@ -135,7 +135,7 @@ emit 事件时传**副本**而非原对象，防止订阅者修改事件里的�
 
 ### 6. 无 try/catch：信任 `StreamFn` 的「不抛错」契约
 
-[types.ts](../../../packages/ai/src/types.ts) L326-331 明确：失败必须编码进流（`error` 事件 + 最终 `stopReason`），不能 throw。唯一例外是「auth 缺失时 `streamSimple()` 同步 throw」（L328-329）——这个 throw 会冒泡到 `runLoop`（也无 try/catch），最终由 `Agent` 类的 `runWithLifecycle` 兜底成整场失败。
+[types.ts](../../../packages/ai/src/types.ts) L353-363 明确：失败必须编码进流（`error` 事件 + 最终 `stopReason`），不能 throw。唯一例外是「auth 缺失时 `streamSimple()` 同步 throw」（L359-360）——这个 throw 会冒泡到 `runLoop`（也无 try/catch），最终由 `Agent` 类的 `runWithLifecycle` 兜底成整场失败。
 
 ## 事件折叠全景
 
@@ -191,9 +191,9 @@ flowchart TB
 
 ## 验证方式
 
-- `read_file` 读 `agent-loop.ts` 275-370 行全文
+- `read_file` 读 `agent-loop.ts` 380-466 行全文
 - `read_file` 读 `event-stream.ts`（`EventStream` 的 `push`/`end`/`result`/asyncIterator、`AssistantMessageEventStream` 构造）
-- `read_file` 读 `types.ts` 530-562 行（`AssistantMessageEvent` 协议 + `partial` 语义注释）
+- `read_file` 读 `types.ts` 716-748 行（`AssistantMessageEvent` 协议 + `partial` 语义注释）
 
 ## 遗留问题
 

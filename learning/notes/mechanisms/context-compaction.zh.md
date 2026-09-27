@@ -19,19 +19,19 @@ LLM 上下文窗口有限。会话过长时，pi 把较旧的一段对话历史�
 
 ### 1. 触发：一条阈值公式
 
-`shouldCompact`（compaction.ts L250）判断 `contextTokens > contextWindow - reserveTokens`。`reserveTokens` 默认 16384，为 LLM 回复预留空间；`keepRecentTokens` 默认 20000，决定保留多少近期消息。两者在 `~/.pi/agent/settings.json` 或 `<project-dir>/.pi/settings.json` 的 `compaction` 段配置，另支持 `modelOverrides` 按 `provider/modelId` 微调。
+`shouldCompact`（compaction.ts L289）判断 `contextTokens > contextWindow - reserveTokens`。`reserveTokens` 默认 16384，为 LLM 回复预留空间；`keepRecentTokens` 默认 20000，决定保留多少近期消息。两者在 `~/.pi/agent/settings.json` 或 `<project-dir>/.pi/settings.json` 的 `compaction` 段配置，另支持 `modelOverrides` 按 `provider/modelId` 微调。
 
 ### 2. 三个检查时点
 
 自动压缩在三个位置同步触发（agent-session.ts）：
 
-- 工具批执行完、结果追加后、下一个 assistant 回复前（`_checkCompaction` 在 `agent_end` 后调用，L1212）
-- 新用户提示发送前（L1337）
-- 低层 agent run 结束后（L558）
+- 工具批执行完、结果追加后、下一个 assistant 回复前（`_checkCompaction` 在 `agent_end` 后调用，L1525）
+- 新用户提示发送前（L1697）
+- 低层 agent run 结束后（2026-09-27 起该触发点已重构为 `prepareNextTurn` 钩子里的 `_compactBeforeNextAssistantResponse`，调用点 L697）
 
 ### 3. 压缩五步
 
-1. **找切点**：从最新消息向前累积 token 估算，直到达到 `keepRecentTokens`（`findCutPoint`，compaction.ts L418）
+1. **找切点**：从最新消息向前累积 token 估算，直到达到 `keepRecentTokens`（`findCutPoint`，compaction.ts L468）
 2. **提取消息**：收集从上次保留边界到切点的消息
 3. **生成摘要**：调用 LLM 按固定结构化格式总结，若已有历史摘要则迭代合并
 4. **追加条目**：保存 `CompactionEntry`（摘要 + `firstKeptEntryId`）
@@ -39,7 +39,7 @@ LLM 上下文窗口有限。会话过长时，pi 把较旧的一段对话历史�
 
 ### 4. 摘要是一次独立调用
 
-`completeSummarization`（compaction.ts L591）是所有摘要调用的统一出口：`sessionId ?? uuidv7()` 生成独立 routing session、`cacheRetention: "none"` 不写 prompt cache。摘要结果不作为 assistant 消息插进对话流，而是存成 `CompactionEntry`，重建上下文时作为 `compactionSummary` 消息注入。
+`completeSummarization`（compaction.ts L641）是所有摘要调用的统一出口：`sessionId ?? uuidv7()` 生成独立 routing session、`cacheRetention: "none"` 不写 prompt cache。摘要结果不作为 assistant 消息插进对话流，而是存成 `CompactionEntry`，重建上下文时作为 `compactionSummary` 消息注入。
 
 ### 5. 同步阻塞
 
@@ -47,15 +47,15 @@ LLM 上下文窗口有限。会话过长时，pi 把较旧的一段对话历史�
 
 ### 6. 系统提示词与工具不受影响
 
-`getMessageFromEntryForCompaction`（compaction.ts L93）对 `role === "system"` 的消息返回 `undefined`——系统消息被当作「提示词状态」而非「对话」排除在摘要之外。同时 `CompactionEntry.systemMessage` 字段（session-manager.ts L88）在压缩边界用 `getCurrentSystemMessage` 快照保存「完整提示词 + 工具状态」，重建上下文时随摘要一起重放，确保跨压缩、跨重启都能恢复出完整正确的提示词。
+`getMessagesFromProjectedEntryForCompaction`（compaction.ts L97，2026-09-27 由 `getMessageFromEntryForCompaction` 改名，返回值从「单条消息或 undefined」改为「消息数组」）对 `role === "system"` 的消息返回空——系统消息被当作「提示词状态」而非「对话」排除在摘要之外。同时 `CompactionEntry.systemMessage` 字段（session-manager.ts L103）在压缩边界用 `getCurrentSystemMessage` 快照保存「完整提示词 + 工具状态」，重建上下文时随摘要一起重放，确保跨压缩、跨重启都能恢复出完整正确的提示词。
 
 ### 7. split turn
 
-单轮超过 `keepRecentTokens` 时切点落在轮次中间，生成两份摘要（history summary + turn prefix summary）再合并（compaction.ts L899）。
+单轮超过 `keepRecentTokens` 时切点落在轮次中间，生成两份摘要（history summary + turn prefix summary）再合并（compaction.ts L1054）。
 
 ### 8. overflow 恢复
 
-请求因上下文溢出失败时，先移除失败/截断的 assistant 消息，压缩后重试被中断的 turn 一次（`_checkCompaction` 的 Case 1，agent-session.ts L2289）。
+请求因上下文溢出失败时，先移除失败/截断的 assistant 消息，压缩后重试被中断的 turn 一次（`_checkCompaction` 的 overflow 恢复分支，agent-session.ts L2695-2696）。
 
 ## 关键取舍
 

@@ -6,7 +6,7 @@
 
 ## 事实源（链接，不复述）
 
-- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionAPI` L1252-1506、`ExtensionContext` L309-349、`ExtensionCommandContext` L355-389、`ExtensionUIContext` L133-284）
+- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionAPI` L1365-1641、`ExtensionContext` L319-359、`ExtensionCommandContext` L365-399、`ExtensionUIContext` L143-294）
 - [extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts)（`ExtensionRunner`）
 - [event-bus.ts](../../../packages/coding-agent/src/core/event-bus.ts)（`EventBus`，基于 `EventEmitter` 的 pub/sub）
 - [examples/extensions/subagent/index.ts](../../../packages/coding-agent/examples/extensions/subagent/index.ts)（子智能体：`registerTool` + spawn 独立 `pi` 进程）

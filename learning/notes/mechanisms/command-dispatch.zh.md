@@ -1,17 +1,17 @@
 # 命令分派与 input 事件：两类 command、四种模式、谁汇入 input
 
-状态：草稿（2026-09-22 对照 [rpc-types.ts](../../../packages/coding-agent/src/modes/rpc/rpc-types.ts) 的 `RpcCommand` union L20-74、[rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts) 的 `handleCommand` L386-424、[slash-commands.ts](../../../packages/coding-agent/src/core/slash-commands.ts) 全文、[agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) 的 `prompt` 分流 L1250-1291 与 `steer`/`followUp` L1498-1546、[interactive-mode.ts](../../../packages/coding-agent/src/modes/interactive/interactive-mode.ts) 的输入主循环 L1137-1143、[extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) 的 Session/Model/UserBash 事件定义 L558-855）
+状态：草稿（2026-09-22 对照 [rpc-types.ts](../../../packages/coding-agent/src/modes/rpc/rpc-types.ts) 的 `RpcCommand` union L20-74、[rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts) 的 `handleCommand` L386-424、[slash-commands.ts](../../../packages/coding-agent/src/core/slash-commands.ts) 全文、[agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) 的 `prompt` 分流 L1609-1752 与 `steer`/`followUp` L1852-1874、[interactive-mode.ts](../../../packages/coding-agent/src/modes/interactive/interactive-mode.ts) 的输入主循环 L1197-1206、[extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) 的 Session/Model/UserBash 事件定义 L569-956）
 
 本文回答一个问题：**pi 各工作方式下的"命令"分别是什么概念、它们如何分派——哪些汇入 `input` 事件，其余的用什么扩展事件 hook。** 它是 [provider-injection.zh.md](provider-injection.zh.md)（input 之后如何注入 provider 请求）的上游篇：该篇的链路以 `input` 为入口，本文回答"什么才会走到 `input`"；hook 点全景见 [extension-hooks.zh.md](../modules/extension-hooks.zh.md)，本文只补它没展开的"命令分类 × hook 矩阵"。
 
 ## 事实源（链接，不复述）
 
 - [rpc-types.ts](../../../packages/coding-agent/src/modes/rpc/rpc-types.ts)（`RpcCommand` L20-74、`RpcSlashCommand` L81-90）
-- [rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts)（`handleCommand` 的 switch L386 起；`steer`/`follow_up` 传 `source:"rpc"` L418-424）
-- [slash-commands.ts](../../../packages/coding-agent/src/core/slash-commands.ts)（`SlashCommandSource` L4、`BUILTIN_SLASH_COMMANDS` L19-43）
-- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`prompt` 分流 L1250-1291、`steer`/`followUp` L1498-1512、`_throwIfExtensionCommand` L1551-1561）
-- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionMode` L307、`InputSource` L864、Session Events L558-677、Model Events L824-842、UserBash L848-855）
-- [extensions.md](../../../packages/coding-agent/docs/extensions.md)（input 事件与处理顺序 L914-963）
+- [rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts)（`handleCommand` 的 switch L386 起；`steer`/`follow_up` 传 `source:"rpc"` L416-424）
+- [slash-commands.ts](../../../packages/coding-agent/src/core/slash-commands.ts)（`SlashCommandSource` L4、`BUILTIN_SLASH_COMMANDS` L19-44）
+- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`prompt` 分流 L1609-1752、`steer`/`followUp` L1852-1874、`_throwIfExtensionCommand` L1909-1919）
+- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionMode` L317、`InputSource` L963、Session Events L569-691、Model Events L922-941、UserBash L943-956）
+- [extensions.md](../../../packages/coding-agent/docs/extensions.md)（input 事件与处理顺序；2026-09-27 起该文档已大幅重写为 216 行，原 L914-963 章节不存在，input 概述见 L62/L99）
 
 ## 它是什么（≤5 句）
 
@@ -22,7 +22,7 @@
 | 模式 | 协议级 command | slash command | 输入入口 |
 |---|---|---|---|
 | RPC | `RpcCommand`（stdin JSON） | prompt message 里 `/` 开头 | `handleCommand` 分派到 `session.*` |
-| interactive | 无；用户敲键盘 | `/cmd` 文本 + 内置 TUI 命令（`BUILTIN_SLASH_COMMANDS`） | `session.prompt(userInput)`（interactive-mode.ts L1140） |
+| interactive | 无；用户敲键盘 | `/cmd` 文本 + 内置 TUI 命令（`BUILTIN_SLASH_COMMANDS`） | `session.prompt(userInput)`（interactive-mode.ts L1201） |
 | print / json | 无；只有 prompt 文本 | prompt 里可含 `/cmd`（extension 类会执行；内置 TUI 命令不执行） | `session.prompt(...)`（print-mode.ts L132/136） |
 | SDK | `AgentSession` 公开方法即等价物 | `sendUserMessage` 文本可含 `/cmd` | 直接调方法 |
 
@@ -30,7 +30,7 @@ SDK 的方法清单（`prompt`/`steer`/`followUp`/`newSession`/`fork`/`compact`/
 
 ## prompt() 内部分流：谁触发 input
 
-agent-session.ts L1255-1291 的固定顺序，extension command 检查在 input **之前**短路：
+agent-session.ts L1618-1625 的固定顺序，extension command 检查在 input **之前**短路：
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ flowchart TD
 
 1. input handler 里看到的 `/` 开头文本一定是**未命中** extension command 的（命中的已短路，看不到）。
 2. `/skill:name`、`/template` 在 input **之后**才展开——input 是展开前改写/拦截 skill 调用的唯一机会。
-3. steer()/followUp() **不允许** extension command：`_throwIfExtensionCommand`（L1551-1561）直接抛错 "cannot be queued, use prompt()"；RPC 的 steer/follow_up command 同样拒绝（rpc.md L82/104）。
+3. steer()/followUp() **不允许** extension command：`_throwIfExtensionCommand`（L1909-1919）直接抛错 "cannot be queued, use prompt()"；RPC 的 steer/follow_up command 同样拒绝（原 rpc.md L82/104；2026-09-27 起 rpc.md 已重写，命令详情移至 rpc-commands.md）。
 
 ## 命令分类 × hook 矩阵（核心增量）
 
@@ -82,7 +82,7 @@ SDK 兜底：SDK 是进程内调用，`AgentSession` 方法是普通方法——
 
 - 原以为：RPC 的 `RpcCommand` 会映射到 `pi.*`（扩展 API），extension 通过 `pi.*` 参与命令处理。
 - 实际是：`RpcCommand` 映射到 `AgentSession` 的方法（rpc-mode.ts `handleCommand` 的 switch 逐个调 `session.*`）；`pi.*` 与 RPC 协议是两个平面，只有 slash 的 extension 子类（`/cmd`）经 `_tryExecuteExtensionCommand` 落到 `pi.registerCommand` 注册的 handler。
-- 修正来源：rpc-mode.ts L386-424（switch 分派全貌）、agent-session.ts L1256-1265（extension command 检查点）。
+- 修正来源：rpc-mode.ts L386-424（switch 分派全貌）、agent-session.ts L1618-1625（extension command 检查点）。
 
 ## 与相邻单元的关系
 
@@ -94,7 +94,7 @@ SDK 兜底：SDK 是进程内调用，`AgentSession` 方法是普通方法——
 
 - `read_file` 读 [rpc-types.ts](../../../packages/coding-agent/src/modes/rpc/rpc-types.ts) L20-74（command 全清单）
 - `read_file` 读 [rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts) L386-424（分派到 session 方法、steer/follow_up 传 source:"rpc"）
-- `read_file` 读 [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) L1250-1291（extension command 短路 → input → 展开）、L1551-1561（steer/followUp 拒绝 extension command）
+- `read_file` 读 [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) L1609-1752（extension command 短路 → input → 展开）、L1909-1919（steer/followUp 拒绝 extension command）
 - `search_content` 搜 `interface ModelSelectEvent|interface SessionBeforeCompactEvent|interface UserBashEvent` 定位各事件定义与 result 字段
 
 ## 遗留问题

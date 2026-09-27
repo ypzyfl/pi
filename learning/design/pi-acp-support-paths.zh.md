@@ -8,9 +8,9 @@
 
 - [rpc-types.ts](../../../packages/coding-agent/src/modes/rpc/rpc-types.ts)（`RpcCommand` 封闭 union L20-74，无版本协商字段）
 - [rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts)（stdio 行读取循环归属 mode，L386 起 `handleCommand`）
-- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionMode` 封闭 union L307：tui/rpc/json/print）
+- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionMode` 封闭 union L317：tui/rpc/json/print）
 - [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts)（`createAgentSession` 公开 SDK 入口）
-- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`bindExtensions` 接受自定义 `uiContext` L2541-2546）
+- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`bindExtensions` 接受自定义 `uiContext` L2919-2922）
 - [rpc.md](../../../packages/coding-agent/docs/rpc.md)（协议文档，无兼容性承诺）
 
 ## 它是什么（≤5 句）
@@ -52,7 +52,7 @@ ACP 与 pi 事件/命令近逐点对应，翻译不难（pi-acp 项目已验证�
 1. 新增 `src/modes/acp/`：ACP JSON-RPC 循环，骨架与 rpc-mode.ts 同构（行读取 → 分派到 AgentSession 方法 → 事件流转 stdout，换一套协议词汇表）。
 2. `args.ts`：`--mode` 取值加 `acp`。
 3. `main.ts`：模式分派分支。
-4. `ExtensionMode`（types.ts L307）加 `"acp"`，extension 的 ctx.mode 才有正确语义。
+4. `ExtensionMode`（types.ts L317）加 `"acp"`，extension 的 ctx.mode 才有正确语义。
 
 归宿：fork 维护（同步上游时冲突）或推动上游（pi 贡献门槛：新贡献者 PR 自动关闭、维护者每日审；此量级需先走 RFC 渠道 rfc.earendil.com）。
 
@@ -91,8 +91,8 @@ SDK 免疫三机制：编译期暴露（.d.ts 进包，字段删除在 tsc 报�
 ## 验证方式
 
 - `read_file` 读 [rpc-types.ts](../../../packages/coding-agent/src/modes/rpc/rpc-types.ts) L20-74（确认封闭 union 与无版本字段）
-- `read_file` 读 [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) L307（ExtensionMode 四值封闭）
-- `read_file` 读 [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) L2541-2546（bindExtensions 的 uiContext 注入，路径 C 的 UI 映射支点）
+- `read_file` 读 [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) L317（ExtensionMode 四值封闭）
+- `read_file` 读 [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) L2919-2922（bindExtensions 的 uiContext 注入，路径 C 的 UI 映射支点）
 - 路径 C 的实测（未做）：在 pi-acp 里用 createAgentSession 替换 spawn 子进程，验证事件流翻译与 extension 加载——见遗留问题
 
 ## 遗留问题

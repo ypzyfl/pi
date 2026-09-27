@@ -168,7 +168,7 @@ runAgentLoop (agent-loop.ts, 双层 while)
  |    |  |       v                                                  |
  |    |  |  toolResult 消息以 message_start/end 推回上下文           |
  |    |  |       |                                                  |
- |    |  |  turn_end -> shouldStopAfterTurn? -> 可提前终止            |
+ |    |  |  finishTurn? -> turn_end -> 可提前终止            |
  |    |  +----------------------------------------------------------+
  |    |
  |    |  (无 follow-up 排队消息 -> 退出外层循环)
@@ -180,7 +180,7 @@ runAgentLoop (agent-loop.ts, 双层 while)
  +---> 模式层监听者: TUI 渲染 / rpc stdout / print 输出
 ```
 
-停止条件全集：error/aborted、`shouldStopAfterTurn`、工具批全部 `terminate === true`、无 follow-up 消息。
+停止条件全集：error/aborted、`finishTurn` 返回 `{action:"end"}`、工具批全部 `terminate === true`、无 follow-up 消息。
 
 ## 5. AgentSession 组装详解
 

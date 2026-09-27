@@ -47,7 +47,7 @@ export const API_KEY = process.env.ANTHROPIC_OAUTH_TOKEN || process.env.ANTHROPI
 | | `npm run check` | `./test.sh` |
 |---|---|---|
 | 性质 | 静态门禁 | 行为验证（隔离环境全量测试） |
-| 组成（[package.json L21](../../../package.json)、L39–40） | biome、pinned-deps、runtime-deps、ts-imports、entry-graphs、shrinkwrap、install-lock、`tsgo --noEmit`、browser-smoke | `npm test` = scripts 测试 + 全部 workspace 测试 |
+| 组成（[package.json L21](../../../package.json)、L39–40） | biome、pinned-deps、runtime-deps、ts-imports、entry-graphs、shrinkwrap、install-lock、`tsc --noEmit`、browser-smoke | `npm test` = scripts 测试 + 全部 workspace 测试 |
 | 回答的问题 | 代码形式合规吗？类型对吗？依赖钉死了吗？ | 代码行为正确吗？ |
 | 执行任何测试吗 | 否（AGENTS.md L31 明说 "Does not run tests"） | 只做这个 |
 | 时机 | 每次代码改动后（docs 除外），提交前修完所有 error / warning / info | 需要验证行为时；CI 全量 |

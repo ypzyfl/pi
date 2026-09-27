@@ -32,6 +32,7 @@
 ### journal 现有记录
 
 - [2026-09-08-01-readme-harness](journal/2026-09-08-01-readme-harness.zh.md)：README 精读（阶段 1 第 1 步）途中辨「仓库是 agent 还是 harness」——等式成立但论域不同：产品是 agent，仓库是 harness。
+- [2026-09-27-01-version-realign](journal/2026-09-27-01-version-realign.zh.md)：版本对齐 2b0a123de（0.85.1 → 0.87.1）重新学习——三个认知翻转（finishTurn 语义重构 / tsgo→tsc native 转正 / Pico5 完整存储体系）。
 
 ### notes 现有记录
 
@@ -47,6 +48,7 @@
 | [notes/mechanisms/contribution-gate.zh.md](notes/mechanisms/contribution-gate.zh.md) | 贡献门槛：auto-close 是三个 workflow + 白名单文件的机器执行；lgtmi/lgtm 能力不对称由代码强制、审批状态进 git |
 | [notes/mechanisms/dual-runtime-semantics.zh.md](notes/mechanisms/dual-runtime-semantics.zh.md) | 双栈语义：经典内存栈「先做事后记账」（内存即真相，JSONL 是旁路日志）vs durable 持久化栈「先记账再做事」（accept/drive 操作状态机）；durable 已发布、按场景分工、无替换承诺 |
 | [notes/mechanisms/test-sh-on-windows.zh.md](notes/mechanisms/test-sh-on-windows.zh.md) | test.sh 在 Windows：Git Bash 是唯一入口（勿用 WSL bash）；MSYS 对 HOME/USERPROFILE 转换不对称破坏 ~/ 缩写；rolldown 截断诊断案例；套件失败四分类 |
+| [notes/mechanisms/typescript-7-toolchain.zh.md](notes/mechanisms/typescript-7-toolchain.zh.md) | TypeScript 7 工具链：tsgo→tsc（native 转正）、移除 tsx 改「type stripping + source resolver hook」直跑源码、tsconfig 收紧到可擦除语法——运行时解析面统一到 src、防落到过期 dist |
 | [notes/mechanisms/event-stream.zh.md](notes/mechanisms/event-stream.zh.md) | EventStream 异步流原语（重点学习篇）：双栈 FIFO、push/消费/终结三态、result 幂等提取、无背压取舍、AssistantMessageEventStream 特化、agent-loop 两处使用 |
 | [notes/mechanisms/abort-signal.zh.md](notes/mechanisms/abort-signal.zh.md) | AbortSignal 机制：控制者（AbortController.abort）与感知者（监听/轮询）单向信号链、raceWithAbortSignal 三重竞态防护、provider 层统一 aborted/error、abort 永不重试、两个 abort.ts 复制适配 |
 | [notes/mechanisms/structured-system-prompt.zh.md](notes/mechanisms/structured-system-prompt.zh.md) | 结构化系统提示词：system 消息承载 prompt 与工具声明——sections 命名段、diff 追加 patch、重放按段覆盖（持久层追加 vs 投影层替换）、prompt caching 三段断点 |
@@ -62,6 +64,7 @@
 | [notes/modules/extension-hooks.zh.md](notes/modules/extension-hooks.zh.md) | 扩展 hook 点梳理：一个完整会话中扩展可介入的 4 边界层（输入/agent/工具/provider）、观察/可修改/拦截三类能力、事件接线位置 |
 | [notes/modules/extension-capabilities.zh.md](notes/modules/extension-capabilities.zh.md) | 扩展能力全景：1 个被动补丁层（hook）+ 5 条主动轴（注入/驱动/重配/生命周期/UI 协作）、子智能体靠 registerTool+spawn、会话生命周期权限分层 |
 | [notes/modules/extension-human-approval.zh.md](notes/modules/extension-human-approval.zh.md) | 人工审批与暂停等待机制：pi 故意不内置 permission popups、async handler+await ctx.ui 隐式暂停、tool_call 审批点、json/print 自动拒绝、signal/timeout 取消 |
+| [notes/modules/durable-storage.zh.md](notes/modules/durable-storage.zh.md) | durable 包（Pico runtime）存储与事务体系：三存储后端（memory/jsonl/sqlite）、品牌类型 ID、事务性 session（staging/原子提交/写后读禁止）、migrate/checkpoint、惰性 fork；document 由 chord immutable delta 承载 |
 
 ## 进度看板
 
@@ -88,8 +91,9 @@
 | 会话 JSONL 树模型 | pi 全部持久能力（分支 / resume / compaction / 导出 / 分享）的地基 | 锚点已建立（[experiments/001](experiments/001-session-anchor.zh.md)，2026-09-08 补录） | [map.zh.md](map.zh.md)「会话模型」；[experiments/001-session-anchor.zh.md](experiments/001-session-anchor.zh.md) |
 | 扩展加载机制 | 「最小核心 + 自扩展」是 pi 的立身信条，扩展系统是信条的载体 | 阶段 5 | — |
 | 与 dsh 的架构对照 | 已有 dsh 心智模型可迁移：「一切皆插件」（配置式组合） vs「最小核心 + 外挂资源」（资源加载）；对照能凸显两者的真实取舍 | 按需 | [map.zh.md](map.zh.md)「分层心智模型」 |
-| 系统提示词与工具声明的 system 消息化重构（2026-09-19） | `AgentContext.systemPrompt` / `AgentToolResult.addedToolNames` 删除，改为 transcript 的 system 消息承载 + `declareToolChanges` 动态声明；动摇 loop 系列「llmContext 三件套」结论 | 待重学 | [agent-loop.zh.md](notes/modules/agent-loop.zh.md)、[agent-loop-stream.zh.md](notes/modules/agent-loop-stream.zh.md) 已修正 |
-| durable 包与 pico3（2026-09-19） | durable 方向新一代落地：独立 `packages/durable`（Pico runtime）+ agent `harness/pico3/`，与既有 AgentHarness 关系待裁决 | 待重学 | [dual-runtime-semantics.zh.md](notes/mechanisms/dual-runtime-semantics.zh.md)「版本演进」 |
+| 系统提示词与工具声明的 system 消息化重构（2026-09-19） | `AgentContext.systemPrompt` / `AgentToolResult.addedToolNames` 删除，改为 transcript 的 system 消息承载 + `declareToolChanges` 动态声明；动摇 loop 系列「llmContext 三件套」结论 | 已重学 | [agent-loop.zh.md](notes/modules/agent-loop.zh.md)、[agent-loop-stream.zh.md](notes/modules/agent-loop-stream.zh.md) 已修正 |
+| durable 包与 pico3（2026-09-19 → 2026-09-27） | durable 方向新一代落地：独立 `packages/durable`（Pico runtime）已扩张为 memory/jsonl/sqlite 三存储后端 + conformance 套件；agent `harness/pico3/` 与既有 AgentHarness 关系已裁决（Pico 是更远的探索分支，未取代 AgentHarness） | 已重学 | [dual-runtime-semantics.zh.md](notes/mechanisms/dual-runtime-semantics.zh.md)「版本演进」 |
+| loop 控制流 API 重构（2026-09-27） | `shouldStopAfterTurn` 删除 → `finishTurn`（返回 `AgentTurnDecision`）+ 新增 `prepareRequest`；`turn_end` 时序改为「先 finishTurn、后 turn_end」；动摇 loop 系列「停止条件全集」结论 | 已重学 | [agent-loop.zh.md](notes/modules/agent-loop.zh.md)、[agent-loop-runloop.zh.md](notes/modules/agent-loop-runloop.zh.md) 已修正 |
 
 ## 常用命令备忘
 
@@ -98,7 +102,7 @@
 | 想查什么 | 命令 |
 |---|---|
 | 从源码跑 pi（可在任意目录） | `./pi-test.sh`（Windows：`.\pi-test.ps1`）；传参如 `--list-models`、`-p "..."` |
-| 代码检查门禁（改代码后必跑） | `npm run check`（biome + 依赖钉版 + tsgo 等，见根 package.json） |
+| 代码检查门禁（改代码后必跑） | `npm run check`（biome + 依赖钉版 + tsc 等，见根 package.json） |
 | 非 e2e 测试（隔离环境，不碰用户配置/凭据） | 仓库根 `./test.sh`；Windows：PowerShell 里 `& "C:\Program Files\Git\bin\bash.exe" ./test.sh`（勿用裸 `bash`，PATH 上是 WSL） |
 | 包内单测（vitest 包） | 包根：`node "$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js" --run test/<file>.test.ts` |
 | 包内单测（tui，node:test） | 包根：`node --test test/<file>.test.ts` |

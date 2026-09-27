@@ -6,13 +6,13 @@
 
 ## 事实源（链接，不复述）
 
-- [agent.ts](../../../packages/agent/src/agent.ts)（控制者：`runWithLifecycle` 486-509 创建 AbortController、`abort` 319-321 触发、`handleRunFailure` 511-527 兜底、`finishRun` 529-535 收尾）
+- [agent.ts](../../../packages/agent/src/agent.ts)（控制者：`runWithLifecycle` L507 创建 AbortController、`abort` L341 触发、`handleRunFailure` L532 兜底、`finishRun` L550 收尾）
 - [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（感知者：signal 传递 + 各层 abort 检查）
 - [ai/utils/abort.ts](../../../packages/ai/src/utils/abort.ts)（`raceWithAbortSignal` / `operationSignal` / `abortReason`，ai 包内部工具）
 - [coding-agent/src/utils/abort.ts](../../../packages/coding-agent/src/utils/abort.ts)（副本，signal 改为可选）
 - [ai/api/*](../../../packages/ai/src/api/)（provider 层统一 `signal.aborted ? "aborted" : "error"`）
 - [ai/utils/retry.ts](../../../packages/ai/src/utils/retry.ts)（abort 永不重试）
-- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`abort` 复合操作 1640-1646、子操作 AbortController）
+- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`abort` 复合操作 L2075、子操作 AbortController）
 - [keybindings.ts](../../../packages/coding-agent/src/core/keybindings.ts)（`app.interrupt` = escape）
 
 ## 一句话定位
@@ -176,18 +176,18 @@ sequenceDiagram
 所有 provider 在 catch 里用**同一个模式**区分 abort 与 error：
 
 ```typescript
-// anthropic-messages.ts L811-814，其余 provider 完全一致
+// anthropic-messages.ts L831-834，其余 provider 完全一致
 output.stopReason = options?.signal?.aborted ? "aborted" : "error";
 stream.push({ type: "error", reason: output.stopReason, error: output });
 stream.end();
 ```
 
-`error` 事件经 `AssistantMessageEventStream` 回流，`runLoop` 检测到 `stopReason "aborted"` 提前 `agent_end` 退出。**abort 是终态，永不重试**（[ai/utils/retry.ts](../../../packages/ai/src/utils/retry.ts) L187-190）。
+`error` 事件经 `AssistantMessageEventStream` 回流，`runLoop` 检测到 `stopReason "aborted"` 提前 `agent_end` 退出。**abort 是终态，永不重试**（[ai/utils/retry.ts](../../../packages/ai/src/utils/retry.ts) L189-190）。
 
 ## 九、异常兜底与收尾（控制者侧）
 
-- **`handleRunFailure`**（`agent.ts` 511-527）：底层意外 throw 时，补发完整事件序列（message_start → message_end → turn_end → agent_end），`signal.aborted` 决定 stopReason 是 "aborted" 还是 "error"。
-- **`finishRun`**（`agent.ts` 529-535）：清 streaming 状态、`activeRun = undefined`——此后 signal 失效，abort 对已结束的 run 无效。
+- **`handleRunFailure`**（`agent.ts` L532）：底层意外 throw 时，补发完整事件序列（message_start → message_end → turn_end → agent_end），`signal.aborted` 决定 stopReason 是 "aborted" 还是 "error"。
+- **`finishRun`**（`agent.ts` L550）：清 streaming 状态、`activeRun = undefined`——此后 signal 失效，abort 对已结束的 run 无效。
 
 ## 十、触发 abort 的入口（都收敛到 `controller.abort()`）
 
@@ -221,11 +221,11 @@ AbortSignal 是「**一个控制者、多个感知者、一条单向 signal 链*
 
 ## 验证方式
 
-- `read_file` 读 `agent.ts` 486-535（`runWithLifecycle`/`abort`/`handleRunFailure`/`finishRun`）
+- `read_file` 读 `agent.ts` 507-550（`runWithLifecycle`/`abort`/`handleRunFailure`/`finishRun`）
 - `read_file` 读 `ai/utils/abort.ts` 与 `coding-agent/src/utils/abort.ts`（对比副本差异）
 - `read_file` 读 `ai/api/*` 任一 provider 的 catch 分支（统一 abort/error 区分）
-- `read_file` 读 `ai/utils/retry.ts` 187-190（abort 永不重试）
-- `read_file` 读 `agent-session.ts` 1640-1646（`abort` 复合操作）
+- `read_file` 读 `ai/utils/retry.ts` 189-190（abort 永不重试）
+- `read_file` 读 `agent-session.ts` 2075（`abort` 复合操作）
 - `read_file` 读 `keybindings.ts` 93（`app.interrupt` = escape）
 
 ## 遗留问题

@@ -4,9 +4,9 @@
 
 ## 事实源（链接，不复述）
 
-- [test.sh](../../../test.sh) L39-L78（env -i 白名单）、L66-L70（Native Windows 变量继承）
-- [packages/tui/src/terminal-image.ts](../../../packages/tui/src/terminal-image.ts) L669-L676（shortenImagePath 的 startsWith 比较）
-- package-lock.json L1679-L1682（rolldown 绑定的 integrity 基准）
+- [test.sh](../../../test.sh) L39-L79（env -i 白名单）、L66-L70（Native Windows 变量继承）
+- [packages/tui/src/terminal-image.ts](../../../packages/tui/src/terminal-image.ts) L705-711（shortenImagePath 的 startsWith 比较）
+- package-lock.json L1604-L1608（rolldown 绑定的 integrity 基准）
 
 ## 怎么跑（≤5 句）
 

@@ -113,13 +113,13 @@ durable 方向出现两个新落地，读源码后裁决如下（对照 `package
 |---|---|---|
 | pico、pico4 | （已删） | 早期原型，已废弃删除 |
 | Pico3 | `agent/src/harness/pico3/` | 实验性 kernel，仅作参考（`./experimental/pico3` 导出） |
-| Pico5 | `packages/durable` | 规范（normative），仅完成第 1 步（record 契约 + `MemoryStorage`） |
+| Pico5 | `packages/durable` | 规范（normative），已实现 record 契约 + memory/jsonl/sqlite 三种存储后端 + conformance/benchmark 套件（2026-09-27 对齐） |
 
 **AgentHarness 与 Pico 的关系（已裁决）**：AgentHarness（本篇所述的第一代 durable 栈）**不属于 Pico 系列**——它比 Pico 更早，是第一代；Pico 是后来起的「重新设计」代号。时间线是 AgentHarness →（pico/pico4 已删）→ Pico3（参考）→ Pico5（规范 + 实现中）。
 
 **为什么要有 Pico5**：把 durable 从「只覆盖 conversation」扩展到「conversation + task + document」三类事实——`TaskRecord`（durable 状态机，checkpoint / after / abort / background）与 `DocumentRecord`（可变 JSON 状态，rewindable / fork）是 AgentHarness 的 conversation-only 模型表达不了的。抽成独立包 `pi-durable`，定义独立 `Storage` 契约（原子 commit / mintId / scan），与 agent 解耦。**关键**：document 的可变状态用 chord 的 replicated state 承载（`applyImmutable` + `Op`）——这回答了 Q3（chord 在 agent 里的运行时参与度）：chord 的 replicated state 正在成为 durable runtime 的 document 底座。
 
-**当前状态（2026-09-19）**：AgentHarness **仍在使用、没有过时**——`index.ts` 仍导出、`harness/` 子树只增不减（仅新增 `pico3/`），且仍在 server / evals / sqlite-node 服役；Pico5 只有第 1 步、`pi-durable` 依赖全仓 0 命中、Pico3 仅作参考。Pico 系列是「更远的探索分支」，未取代现有服役的那一代。
+**当前状态（2026-09-27 对齐）**：AgentHarness **仍在使用、没有过时**——`index.ts` 仍导出、`harness/` 子树只增不减（仅新增 `pico3/`），且仍在 server / evals / sqlite-node 服役；Pico5 已从「第 1 步」扩张为完整存储体系（memory / jsonl / sqlite 三后端 + conformance/benchmark 套件 + checkpoint / migration / transactional session / document fork / typed ID），但 `pi-durable` 依赖全仓仍 0 命中、Pico3 仅作参考。Pico 系列是「更远的探索分支」，未取代现有服役的那一代。
 
 **结论不变**：本篇「双栈并存、无替换承诺」的核心结论依然成立，AgentHarness 仍是当前真正的 durable 实现。
 
@@ -158,4 +158,4 @@ harness/ 子树 (选择性读):
 ## 遗留问题
 
 - 双栈未来是否收敛 / 替换（观察 experimental 与 server 的演进）——同架构总览 §10 第一条。
-- durable 方向的新一代落地：`packages/durable`（Pico5 规范）与 `harness/pico3/`（参考）相对 AgentHarness 的定位已裁决（见「版本演进」节）——它们是更远的探索分支，未取代 AgentHarness；Pico5 的 task/document 语义（checkpoint/after、rewindable/fork）仍待深入。
+- durable 方向的新一代落地：`packages/durable`（Pico5 规范）与 `harness/pico3/`（参考）相对 AgentHarness 的定位已裁决（见「版本演进」节）——它们是更远的探索分支，未取代 AgentHarness；Pico5 的 task/document 语义（checkpoint/after、rewindable/fork）已落地（`documents.ts`、`session/`），其与经典栈的集成路径仍待观察。

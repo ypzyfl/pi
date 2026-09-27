@@ -20,13 +20,13 @@ pi 的 agent 运行时核心包（npm 名 `@earendil-works/pi-agent-core`），�
 | `index.ts` | 出口：转发 telemetry 类型 + `export *` 导出 agent/loop/harness/proxy/search/types，并公开导出 `AgentHarness` |
 | `agent-loop.ts` | 回合驱动：无状态低层 loop，`AgentMessage` 贯穿，只在 LLM 调用边界转 `Message[]` |
 | `agent.ts` | 有状态包装：`Agent` 类 owns transcript、事件分发（subscribe）、队列（steering/follow-up） |
-| `types.ts` | 词汇：`StreamFn` / `AgentEvent` / `AgentMessage` / `AgentState` / `AgentTool` / `AgentContext` / `AgentLoopConfig` |
+| `types.ts` | 词汇：`StreamFn` / `AgentEvent` / `AgentMessage` / `AgentState` / `AgentTool` / `AgentContext` / `AgentLoopConfig`（含 `FinishTurn` / `PrepareRequest` 回调与 `AgentTurnDecision` 决策类型） |
 | `stream-fn.ts` | 默认流函数：`setDefaultStreamFn` 让宿主注入 model runtime，使本包不依赖 provider catalog |
 | `node.ts` | Node 出口：`export { NodeExecutionEnv }` + 转发 index |
 | `proxy.ts` | 代理流函数：`streamProxy` 供浏览器应用经后端代理调 LLM，客户端重建 partial |
 | `search/index.ts` | 搜索服务契约：`SessionSearchService` / `SearchQuery` / 命中类型（纯接口） |
 
-（2026-09-19 版本对齐：`harness/` 下新增 `pico3/` 实验性子系统，经 package.json 的 `./experimental/pico3` 子路径导出，不并入 `index.ts` 顶层 export。）
+（2026-09-19 版本对齐：`harness/` 下新增 `pico3/` 实验性子系统，经 package.json 的 `./experimental/pico3` 子路径导出，不并入 `index.ts` 顶层 export。2026-09-27 版本对齐：`AgentLoopConfig.shouldStopAfterTurn` 删除，替换为 `finishTurn` + 新增 `prepareRequest`，见 [agent-loop.zh.md](agent-loop.zh.md)。）
 
 ## 关键实体（逐个链接到 home）
 

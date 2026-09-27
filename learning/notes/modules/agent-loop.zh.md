@@ -1,10 +1,10 @@
 # agent-loop.ts 精读笔记
 
-状态：已对照验证（2026-09-14 对照 [packages/agent/src/agent-loop.ts](../../../packages/agent/src/agent-loop.ts)、[types.ts](../../../packages/agent/src/types.ts)、[agent.ts](../../../packages/agent/src/agent.ts)；阶段 3 第 2/3 步）
+状态：已对照验证（2026-09-14 对照 [packages/agent/src/agent-loop.ts](../../../packages/agent/src/agent-loop.ts)、[types.ts](../../../packages/agent/src/types.ts)、[agent.ts](../../../packages/agent/src/agent.ts)；阶段 3 第 2/3 步）。版本对齐（2026-09-27，main commit 2b0a123de）：`shouldStopAfterTurn` 已删除，替换为 `finishTurn`（返回 `AgentTurnDecision` 决策对象，不再是布尔）+ 新增 `prepareRequest`；`turn_end` 时序改为「先 finishTurn、后 turn_end，决策在 turn_end 后应用」。
 
 ## 事实源（链接，不复述）
 
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（804 行，回合驱动本体）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（899 行，回合驱动本体）
 - [types.ts](../../../packages/agent/src/types.ts)（`StreamFn` / `AgentEvent` / `AgentLoopConfig` 等词汇）
 - [agent.ts](../../../packages/agent/src/agent.ts)（有状态 `Agent` 类，消费 `runAgentLoop`）
 - [packages/ai/src/utils/event-stream.ts](../../../packages/ai/src/utils/event-stream.ts)（`EventStream` 定义）
@@ -81,9 +81,10 @@ flowchart TB
     FAIL --> PUSHR["toolResults push<br/>hasMoreToolCalls = !terminate"]
     EXEC --> PUSHR
     PUSHR --> TEND
-    TEND["emit turn_end(message, toolResults)"] --> SSTOP{"shouldStopAfterTurn ?"}
+    TEND["finishTurn 决策（turn_end 前）<br/>emit turn_end"] --> SSTOP{"decision.action == end ?"}
     SSTOP -- 是 --> E2["emit agent_end<br/>return"]
-    SSTOP -- 否 --> STEER["pendingMessages = getSteeringMessages()"]
+    SSTOP -- 否 --> CONT["decision == continue ?<br/>explicitContinuation = true"]
+    CONT --> STEER["pendingMessages = getSteeringMessages()<br/>有工具/steering 则 explicitContinuation = false"]
     STEER --> INNER
 ```
 
@@ -169,18 +170,19 @@ flowchart TB
 
 **`terminate` 语义**（易错点）：`shouldTerminateToolBatch` 要求 `length > 0 && every(terminate === true)`——批量里**所有**工具结果都 `terminate: true` 才提前停，混合批正常继续。
 
-## 停止/继续条件全集（6 个决策点）
+## 停止/继续条件全集（7 个决策点）
 
 | # | 决策点 | 语义 |
 |---|---|---|
-| 1 | `stopReason === "error"/"aborted"` | 模型出错/中止 → 立即 `agent_end` |
+| 1 | `stopReason === "error"/"aborted"` | 模型出错/中止 → 立即 `agent_end`（`finishTurn` 也会被调用，但决策被忽略，仍是硬退出） |
 | 2 | `hasMoreToolCalls = !terminate` | 还有工具 → 继续内层 |
-| 3 | `shouldStopAfterTurn` | turn 完整结束后优雅停 |
+| 3 | `finishTurn` | turn 完整结束后（`turn_end` 前）返回决策：`{action:"end"}` 优雅停、`{action:"continue"}` 保证至少一次下一次请求、`undefined` 保持正常调度 |
 | 4 | `getSteeringMessages` | turn 间隙注入 steering |
 | 5 | `getFollowUpMessages` | 本应停后排队的工作 |
-| 6 | `prepareNextTurn` | 下一 turn 前替换 context/model/thinking |
+| 6 | `prepareRequest` | 每次 provider 请求前（含第一次）替换 context/model/thinking |
+| 7 | `prepareNextTurn` | 下一 turn 前替换 context/model/thinking |
 
-其中 4/5 差异：steering 是「turn 间隙插话」，follow-up 是「空闲后排队」。
+其中 4/5 差异：steering 是「turn 间隙插话」，follow-up 是「空闲后排队」。3 的 `{action:"continue"}` 走 `explicitContinuation` 机制：若 tool-result / steering / follow-up 已能满足「再来一次」，则不额外加请求；否则用当前 context 空跑一次（context-only turn）。
 
 ## 截断保护：`failToolCallsFromTruncatedMessage`
 

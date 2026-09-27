@@ -74,7 +74,7 @@ flowchart TB
 
 - **chord / telemetry（地基）**：chord 是应用组合运行时（服务、复制状态、RPC、插件），几乎被所有上层包依赖；telemetry 定义厂商中立的遥测契约。
 - **ai（模型层）**：把 OpenAI / Anthropic / Google 等多 provider 抹平成一个 API——统一的消息与流式词汇、工具 schema、自动模型发现（`models.generated.ts` 由脚本生成，AGENTS.md 红线：不可手改）。
-- **durable**：Pico 持久化运行时（conversation / task / document 的 durable record 契约 + 内存存储实现）；当前独立发布、无包依赖它，设计文档见 `packages/durable/docs/pico-v5.md`。
+- **durable**：Pico 持久化运行时（conversation / task / document 的 durable record 契约，已落地 memory / jsonl / sqlite 三种存储后端 + conformance/benchmark 套件）；当前独立发布、无包依赖它，设计文档见 `packages/durable/docs/pico-v5.md`。
 - **agent（运行时核心）**：通用 agent runtime——`agent-loop.ts` 回合驱动、`agent.ts` 有状态包装、`harness/` 大子系统（会话存储、执行、运行时驱动、压缩、工具管线）。
 - **coding-agent（产品层）**：面向终端用户的编码 agent——`AgentSession` 组装中枢、内置工具（read / bash / powershell / edit / write / grep / find / ls）、会话管理与分支、设置与信任、扩展/技能/提示词加载、三种运行模式。
 - **tui（独立 UI 库）**：差分渲染的终端 UI 库，被 coding-agent 的 interactive 模式消费。

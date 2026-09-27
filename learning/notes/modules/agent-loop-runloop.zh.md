@@ -6,7 +6,7 @@
 
 ## 事实源（链接，不复述）
 
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（804 行；`runLoop` 在 153-273 行）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（899 行；`runLoop` 在 162-320 行）
 - [types.ts](../../../packages/agent/src/types.ts)（`getSteeringMessages` / `getFollowUpMessages` 契约，L245-258）
 - [agent.ts](../../../packages/agent/src/agent.ts)（有状态 `Agent`：`steer()` / `followUp()` / 两个队列）
 - [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`streamingBehavior` 分流 + `deliverAs` 分流）
@@ -48,9 +48,9 @@ flowchart TB
 
 | 片段 | 行号 | 职责 | 同步/异步 |
 |---|---|---|---|
-| `agentLoop` | 28-55 | 公开入口：同步返回 `EventStream`，异步跑循环，事件桥接到流 | 同步返回 |
-| `runAgentLoop` | 96-119 | 组织上下文（`currentContext` / `newMessages`）、发启动事件、委托 `runLoop` | async |
-| `runLoop` | 153-273 | 核心双层循环，产出最终 `newMessages` | async |
+| `agentLoop` | 37-60 | 公开入口：同步返回 `EventStream`，异步跑循环，事件桥接到流 | 同步返回 |
+| `runAgentLoop` | 101-125 | 组织上下文（`currentContext` / `newMessages`）、发启动事件、委托 `runLoop` | async |
+| `runLoop` | 162-320 | 核心双层循环，产出最终 `newMessages` | async |
 
 ### 片段 1：`agentLoop`（28-55）—— 同步入口 + 流式桥接
 
@@ -81,7 +81,7 @@ export function agentLoop(
 1. **同步返回、异步执行**：函数非 `async`，立即返回 `EventStream`，循环在后台 `void runAgentLoop(...)` 启动。调用方拿到流即可订阅，不错过任何事件。
 2. **`void` 运算符**：明示「这里有 Promise，故意不 await」，完成通过 `.then()` 里 `stream.end(messages)` 衔接。
 3. **事件桥接**：`emit` 支持 `Promise<void> | void`，且 `runAgentLoop` 内都是 `await emit(...)`，故事件**有序串行**流出——对 UI 按序渲染至关重要。
-4. **`createAgentStream`**（146-151 行）：传入「终结事件判断」（`event.type === "agent_end"`）与「终结值提取」（`event.messages`），用**终结事件**闭合流，而非靠 Promise resolve。
+4. **`createAgentStream`**（152-157 行）：传入「终结事件判断」（`event.type === "agent_end"`）与「终结值提取」（`event.messages`），用**终结事件**闭合流，而非靠 Promise resolve。
 
 ### 片段 2：`runAgentLoop`（96-119）—— 准备上下文 + 发启动事件
 
@@ -114,7 +114,7 @@ export async function runAgentLoop(...): Promise<AgentMessage[]> {
 4. **事件时序**：`agent_start` → `turn_start` → 逐 initialMessages `message_start`/`message_end`。把用户消息也当消息发出事件，让 UI 能显示「用户说了什么」。
 5. **`streamFn ?? getDefaultStreamFn()`**：依赖注入 + 默认值兜底，测试可注入 faux provider。
 
-## runLoop 完整流程图（153-273）
+## runLoop 完整流程图（162-320）
 
 双层循环：**内层循环**处理「模型→工具→模型」的单轮迭代与 steering 消息，**外层循环**处理 agent 停止后的 follow-up 消息。
 
@@ -154,11 +154,12 @@ flowchart TD
             ToolRes --> TurnEnd
             NoTool --> TurnEnd
 
-            TurnEnd["发 turn_end"] --> Snapshot["记录 lastCompletedTurn 快照"]
+            TurnEnd["finishTurn 决策（turn_end 前）<br/>发 turn_end"] --> Snapshot["记录 lastCompletedTurn 快照"]
 
-            Snapshot --> StopChk{"shouldStopAfterTurn?"}
+            Snapshot --> StopChk{"decision.action == end?"}
             StopChk -- 是 --> Return2["发 agent_end → return"]
-            StopChk -- 否 --> PollSteer["pendingMessages = getSteeringMessages()"]
+            StopChk -- 否 --> ContChk["decision == continue?<br/>explicitContinuation = true"]
+            ContChk --> PollSteer["pendingMessages = getSteeringMessages()<br/>有工具/steering 则 explicitContinuation = false"]
             PollSteer --> InnerCheck
         end
 
@@ -203,18 +204,18 @@ flowchart TD
 
 ### ⑥ 记录快照 + 停止判断
 
-`turn_end` 标志一轮完成；快照供下一轮钩子；`shouldStopAfterTurn` 可主动终止（退出路径 2）；最后为下一轮预取 steering。
+`finishTurn` 在 `turn_end` 前返回决策，`turn_end` 标志一轮完成；快照供下一轮钩子；`finishTurn` 返回 `{action:"end"}` 可主动终止（退出路径 2）、`{action:"continue"}` 置 `explicitContinuation`；最后为下一轮预取 steering。
 
 ### ⑦ 外层 follow-up 检查
 
-内层退出（无工具、无 steering）时，若有排队 follow-up 则塞回 `pendingMessages` 并 `continue` 重启内层；否则 `break`（退出路径 3）。
+内层退出（无工具、无 steering）时，若有排队 follow-up 则塞回 `pendingMessages` 并 `continue` 重启内层；否则若 `explicitContinuation` 为真（`finishTurn` 返回 `{action:"continue"}` 但无自然请求）则用当前 context 空跑一次再 `continue`；再否则 `break`（退出路径 3）。
 
 ### 三条退出路径
 
 | 路径 | 触发条件 | 位置 |
 |------|---------|------|
 | 1 | `stopReason` 为 `error`/`aborted` | ④ |
-| 2 | `shouldStopAfterTurn` 返回 true | ⑥ |
+| 2 | `finishTurn` 返回 `{action:"end"}` | ⑥ |
 | 3 | 无工具调用、无 steering、无 follow-up | ⑦ |
 
 三条路径最终都统一发 `agent_end` 收尾。
@@ -300,7 +301,7 @@ if (this.isStreaming) {
 
 agent 运行中未指定 `streamingBehavior` 会直接抛错——默认行为必须显式。
 
-**3. RPC 模式**——命令名区分（[rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts) L418-425）：
+**3. RPC 模式**——命令名区分（[rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts) L416-424）：
 
 ```typescript
 case "steer": {
@@ -345,7 +346,7 @@ if (options?.deliverAs === "nextTurn") {
 
 ## 验证方式
 
-- `read_file` 读 `agent-loop.ts` 全文（重点 153-273 行 `runLoop`）
+- `read_file` 读 `agent-loop.ts` 全文（重点 162-320 行 `runLoop`）
 - `search_content` 搜 `getFollowUpMessages` / `getSteeringMessages` / `steer(` / `followUp(` 全仓分布，锁定四条分类来源
 - `read_file` 读 `keybindings.ts` / `agent-session.ts` / `interactive-mode.ts` / `rpc-mode.ts` 关键段，确认分类落地处
 

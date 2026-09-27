@@ -1,12 +1,12 @@
 # 工具执行管线深度解析：executeToolCalls / sequential / parallel
 
-状态：草稿（2026-09-17 对照 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) 406-591 行（入口 + 两条路径 + 类型 + `shouldTerminateToolBatch`）及 607-803 行（三段式函数），[types.ts](../../../packages/agent/src/types.ts) 的 `toolExecution` / `executionMode`；决策逻辑、两阶段编排、惰性 thunk、顺序分离均逐点对照源码）
+状态：草稿（2026-09-17 对照 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) 505-687 行（入口 + 两条路径 + 类型 + `shouldTerminateToolBatch`）及 703-861 行（三段式函数），[types.ts](../../../packages/agent/src/types.ts) 的 `toolExecution` / `executionMode`；决策逻辑、两阶段编排、惰性 thunk、顺序分离均逐点对照源码）
 
 本文是 [agent-loop.zh.md](agent-loop.zh.md)（工具执行三段式概览）的姊妹篇与深化，聚焦 `executeToolCalls` 这一条工具执行管线的**完整细节**：入口如何决策、顺序/并行两条路径如何编排、三个顺序（prepare/execute/消息）如何协调。
 
 ## 事实源（链接，不复述）
 
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`executeToolCalls` 409-424、`executeToolCallsSequential` 431-485、`executeToolCallsParallel` 487-561、类型 563-591、`prepareToolCall` 607-675、`executePreparedToolCall` 677-718、`finalizeExecutedToolCall` 720-765、`shouldTerminateToolBatch` 589-591）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`executeToolCalls` 505-520、`executeToolCallsSequential` 527-581、`executeToolCallsParallel` 583-657、类型 659-687、`prepareToolCall` 703-771、`executePreparedToolCall` 773-814、`finalizeExecutedToolCall` 816-861、`shouldTerminateToolBatch` 685-687）
 - [types.ts](../../../packages/agent/src/types.ts)（`toolExecution` 全局模式、`executionMode` 单工具覆盖）
 
 ## 它是什么（≤5 句）
@@ -179,7 +179,7 @@ return finalizedCalls.length > 0 && finalizedCalls.every((f) => f.result.termina
 
 ## 验证方式
 
-- `read_file` 读 `agent-loop.ts` 406-591（入口 + 两条路径 + 类型）、607-803（三段式函数）
+- `read_file` 读 `agent-loop.ts` 505-687（入口 + 两条路径 + 类型）、703-861（三段式函数）
 - `read_file` 读 `types.ts` 的 `toolExecution` / `executionMode` 定义
 
 ## 遗留问题

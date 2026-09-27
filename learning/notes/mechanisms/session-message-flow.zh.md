@@ -5,8 +5,8 @@
 ## 事实源（链接，不复述）
 
 - [session-format.md](../../../packages/coding-agent/docs/session-format.md)：文件位置、entry 类型、消息类型与 content 块定义、id/parentId 链
-- [packages/ai/src/types.ts](../../../packages/ai/src/types.ts)：`AssistantMessage.content` 的块类型联合（L430 附近）
-- [packages/agent/src/types.ts](../../../packages/agent/src/types.ts)：`AgentEvent`（agent / turn / message / tool_execution 生命周期，L431 起）
+- [packages/ai/src/types.ts](../../../packages/ai/src/types.ts)：`AssistantMessage.content` 的块类型联合（L539 附近）
+- [packages/agent/src/types.ts](../../../packages/agent/src/types.ts)：`AgentEvent`（agent / turn / message / tool_execution 生命周期，L485 起）
 - [packages/agent/src/agent-loop.ts](../../../packages/agent/src/agent-loop.ts)：run 的两层循环、turn 事件发射、steering / follow-up 队列
 - [packages/agent/src/agent.ts](../../../packages/agent/src/agent.ts)：`Agent.prompt()` / `Agent.continue()` 两个 run 入口
 - 真实会话文件：见「验证方式」
@@ -244,7 +244,7 @@ AgentMessage 全部 8 个 role 在图中都有出现：system（③.5，承载�
 
 ## 概念层级：session / run / turn（持久层 vs 运行时）
 
-JSONL 里所有消息平等地挂在 session 树上，没有 turn 分组——这个观察对持久层成立，但 pi 在运行时有完整的 turn 概念，且定义比「一个用户问题到处理完毕」更细：**一个 turn = 一次 assistant 响应 + 它的工具调用/结果**（[agent/types.ts](../../../packages/agent/src/types.ts) L435）。「一个问题到处理完毕」（含 N 次工具调用）= N+1 个 turn，外面套一个 **run**（一次 agent loop 调用，`agent_start` → `agent_end`）。turn / run 都是内存中的事件，只有产出的 message entry 落盘。
+JSONL 里所有消息平等地挂在 session 树上，没有 turn 分组——这个观察对持久层成立，但 pi 在运行时有完整的 turn 概念，且定义比「一个用户问题到处理完毕」更细：**一个 turn = 一次 assistant 响应 + 它的工具调用/结果**（[agent/types.ts](../../../packages/agent/src/types.ts) L489）。「一个问题到处理完毕」（含 N 次工具调用）= N+1 个 turn，外面套一个 **run**（一次 agent loop 调用，`agent_start` → `agent_end`）。turn / run 都是内存中的事件，只有产出的 message entry 落盘。
 
 | 概念 | 定义 | 事件边界 | 生命周期 | 持久化 | 代码权威 |
 |---|---|---|---|---|---|
@@ -256,7 +256,7 @@ JSONL 里所有消息平等地挂在 session 树上，没有 turn 分组——�
 
 ### 层级的上下嵌套（以 turn 为中心）
 
-权威依据是 `AgentEvent` 的四组生命周期注释（[agent/types.ts](../../../packages/agent/src/types.ts) L431-446）：Agent lifecycle（`agent_start` / `agent_end`）→ Turn lifecycle（`turn_start` / `turn_end`，注释明言 *a turn is one assistant response + any tool calls/results*）→ Message lifecycle（`message_start` / `message_update` / `message_end`）→ Tool execution lifecycle（`tool_execution_start` / `tool_execution_update` / `tool_execution_end`）。四组本身就是自上而下的嵌套。
+权威依据是 `AgentEvent` 的四组生命周期注释（[agent/types.ts](../../../packages/agent/src/types.ts) L486-500）：Agent lifecycle（`agent_start` / `agent_end`）→ Turn lifecycle（`turn_start` / `turn_end`，注释明言 *a turn is one assistant response + any tool calls/results*）→ Message lifecycle（`message_start` / `message_update` / `message_end`）→ Tool execution lifecycle（`tool_execution_start` / `tool_execution_update` / `tool_execution_end`）。四组本身就是自上而下的嵌套。
 
 以 **turn** 为中心：
 
@@ -313,7 +313,7 @@ agent_start
 
 ### 先分清两类 message 事件（user 消息为何 start+end 紧挨）
 
-`AgentEvent` 定义里的注释直接给出了语义（[agent/types.ts](../../../packages/agent/src/types.ts) L438-442）：
+`AgentEvent` 定义里的注释直接给出了语义（[agent/types.ts](../../../packages/agent/src/types.ts) L492-496）：
 
 ```typescript
 // Message lifecycle - emitted for user, assistant, and toolResult messages
@@ -334,7 +334,7 @@ agent_start
 | assistant | `message_start` → `message_update` ×N → `message_end` | 流式生成跨越整个响应过程 |
 | toolResult | `message_start` → `message_end`（紧挨） | 结果由端侧生成，事件紧跟工具执行完成 |
 
-因此「user 消息的 `message_end` 在 `runLoop` 之前就 emit」是有意的，不是 bug：`runAgentLoop` 在进入 `runLoop` 前就完成了三件事——`newMessages = [...prompts]`（L104）、`currentContext.messages` 追加 prompts（L107，消息此时已进上下文）、逐条 emit user 消息的 start/end（L112-115，通知订阅方「用户消息已入列」）。消息已入上下文，事件理应先于模型生成发出。`runLoop` 内对 steering 消息的处理一模一样（L201-207，start 紧跟 end），佐证这是统一约定。事件序列有测试断言：[agent-loop.test.ts](../../../packages/agent/test/agent-loop.test.ts) L1188 —— `agent_start, turn_start, message_start, message_end, message_start, message_end, ...`（前两组 start/end 即 user prompts）。
+因此「user 消息的 `message_end` 在 `runLoop` 之前就 emit」是有意的，不是 bug：`runAgentLoop` 在进入 `runLoop` 前就完成了三件事——`newMessages = [...prompts]`（L110）、`currentContext.messages` 追加 prompts（L113，消息此时已进上下文）、逐条 emit user 消息的 start/end（L118-121，通知订阅方「用户消息已入列」）。消息已入上下文，事件理应先于模型生成发出。`runLoop` 内对 steering 消息的处理一模一样（L210-215，start 紧跟 end），佐证这是统一约定。事件序列有测试断言：[agent-loop.test.ts](../../../packages/agent/test/agent-loop.test.ts) L1666 —— `agent_start, turn_start, message_start, message_end, message_start, message_end, ...`（前两组 start/end 即 user prompts）。
 
 ### 事件为何不落盘
 
@@ -348,17 +348,17 @@ Session 文件里没有 `message_start` / `message_update` / `message_end` 条�
 
 代码链路两处关键（2026-09-15 对照）：
 
-1. [agent.ts](../../../packages/agent/src/agent.ts) `processEvents`（L544 起）：`message_start` / `message_update` 只更新 `this._state.streamingMessage`；`message_end` 把 `streamingMessage` 清空并将消息 push 进 `_state.messages`。事件本身不进持久层。
-2. [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) `_handleAgentEvent`（L689 起）：`if (event.type === "message_end")` 时按 role 分派——`custom` → `appendCustomMessageEntry()`；`system` / `user` / `assistant` / `toolResult` → `sessionManager.appendMessage(event.message)`（2026-09-19 起 system 也走这条路落盘）。最终写入的是 [session-manager.ts](../../../packages/coding-agent/src/core/session-manager.ts) `appendMessage()`（L1071 起）构造的 `SessionMessageEntry { type: "message", id, parentId, timestamp, message }`。
+1. [agent.ts](../../../packages/agent/src/agent.ts) `processEvents`（L565 起）：`message_start` / `message_update` 只更新 `this._state.streamingMessage`；`message_end` 把 `streamingMessage` 清空并将消息 push 进 `_state.messages`。事件本身不进持久层。
+2. [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) `_handleAgentEvent`（L897 起）：`if (event.type === "message_end")` 时按 role 分派——`custom` → `appendCustomMessageEntry()`；`system` / `user` / `assistant` / `toolResult` → `sessionManager.appendMessage(event.message)`（2026-09-19 起 system 也走这条路落盘）。最终写入的是 [session-manager.ts](../../../packages/coding-agent/src/core/session-manager.ts) `appendMessage()`（L1204 起）构造的 `SessionMessageEntry { type: "message", id, parentId, timestamp, message }`。
 
 推论两条：
 
-- **start/end 的 emit 时机对落盘结果无影响**。user / toolResult 消息 start+end 紧挨着 emit（内容早已完整，无生成过程，见 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) L112-115 与 runLoop 内 steering 注入 L201-207）；assistant 消息中间隔着 N 个 `message_update`。但持久化逻辑只在 `message_end` 动作一次，所以任何角色都恰好落盘一条 entry。
+- **start/end 的 emit 时机对落盘结果无影响**。user / toolResult 消息 start+end 紧挨着 emit（内容早已完整，无生成过程，见 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) L118-121 与 runLoop 内 steering 注入 L210-215）；assistant 消息中间隔着 N 个 `message_update`。但持久化逻辑只在 `message_end` 动作一次，所以任何角色都恰好落盘一条 entry。
 - **流式中间态只活在内存**。partial 消息仅存在于 `streamingMessage`（UI 可见），Session 文件天然只含定稿结果——重放时不需要也无法还原流式过程。
 
 ## content 块的组合规则（thinking / toolCall 澄清）
 
-thinking 和 toolCall 都是 assistant 消息 `content` 数组里的**内容块**，不是独立消息。定义在 [types.ts](../../../packages/ai/src/types.ts)（L430 附近）：
+thinking 和 toolCall 都是 assistant 消息 `content` 数组里的**内容块**，不是独立消息。定义在 [types.ts](../../../packages/ai/src/types.ts)（L539 附近）：
 
 ```typescript
 interface AssistantMessage {
@@ -385,7 +385,7 @@ interface AssistantMessage {
 
 ## 我曾经的误解
 
-原以为 thinking 可能是独立的消息类型、或必须与 toolCall 绑定出现 → 实际是 `AssistantMessage.content` 数组里与 `TextContent` / `ToolCall` 平级的块，任意组合合法；真实会话里 `assistant: [thinking, text]`（无工具调用）是常态（2026-09-07 对照 types.ts L430 与真实会话文件）。
+原以为 thinking 可能是独立的消息类型、或必须与 toolCall 绑定出现 → 实际是 `AssistantMessage.content` 数组里与 `TextContent` / `ToolCall` 平级的块，任意组合合法；真实会话里 `assistant: [thinking, text]`（无工具调用）是常态（2026-09-07 对照 types.ts L539 与真实会话文件）。
 
 原以为「一个用户问题到处理完毕」是一个 turn、持久层缺了这层结构 → 实际 pi 的 turn 定义更细（一次 assistant 响应 + 工具结果；问题到完毕是 N+1 个 turn 外套一个 run）；turn/run 是运行时事件不落盘，持久层只存 message 树，边界可靠 `stopReason` 推导（2026-09-07 对照 packages/agent/src/{types.ts, agent-loop.ts, agent.ts}）。
 

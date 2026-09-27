@@ -7,8 +7,8 @@
 ## 事实源（链接，不复述）
 
 - [event-stream.ts](../../../packages/ai/src/utils/event-stream.ts)（111 行，全文即本笔记对象）
-- [types.ts](../../../packages/ai/src/types.ts)（`AssistantMessageEvent` 协议 L546-562、`StreamFn` 返回 `AssistantMessageEventStream` 的契约 L326-337）
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`createAgentStream` 146-151 行，`streamAssistantResponse` 275-370 行，两处消费/使用）
+- [types.ts](../../../packages/ai/src/types.ts)（`AssistantMessageEvent` 协议 L732-748、`StreamFn` 返回 `AssistantMessageEventStream` 的契约 L353-368）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`createAgentStream` 152-157 行，`streamAssistantResponse` 380-466 行，两处消费/使用）
 
 ## 它是什么（≤5 句）
 
@@ -189,7 +189,7 @@ export class AssistantMessageEventStream extends EventStream<AssistantMessageEve
 | 使用处 | 泛型 | isComplete | extractResult | 消费方式 |
 |---|---|---|---|---|
 | `streamAssistantResponse` | `AssistantMessageEventStream`（ai 包预定义） | `done`/`error` | `message`/`error` | `for await` 折叠成一条消息 |
-| `createAgentStream`（agent-loop.ts 146-151） | `EventStream<AgentEvent, AgentMessage[]>` | `agent_end` | `event.messages` | `agentLoop` 对外广播 |
+| `createAgentStream`（agent-loop.ts 152-157） | `EventStream<AgentEvent, AgentMessage[]>` | `agent_end` | `event.messages` | `agentLoop` 对外广播 |
 
 后者正是 [agent-loop.zh.md](agent-loop.zh.md) 里说的「`agentLoop` 把 `emit` 接到 `stream.push`」的底层——同一个原语，两个实例，各自用两个函数参数定义自己的终结语义。这是 `EventStream` 作为「通用原语」价值的直接体现。
 

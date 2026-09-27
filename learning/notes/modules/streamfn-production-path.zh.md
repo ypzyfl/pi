@@ -1,16 +1,16 @@
 # 生产路径 streamFn 深度解析：LLM 调用装配链
 
-状态：草稿（2026-09-17 对照 [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts) 314-360 行、[model-runtime.ts](../../../packages/coding-agent/src/core/model-runtime.ts) 573-645 行、[lazy.ts](../../../packages/ai/src/api/lazy.ts) 全文、[provider-attribution.ts](../../../packages/coding-agent/src/core/provider-attribution.ts) 全文、[agent-loop.ts](../../../packages/agent/src/agent-loop.ts) 275-370 行；六层调用链、逐层职责、归因头、两级 key 解析均逐点对照源码）
+状态：草稿（2026-09-17 对照 [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts) 314-360 行、[model-runtime.ts](../../../packages/coding-agent/src/core/model-runtime.ts) 573-645 行、[lazy.ts](../../../packages/ai/src/api/lazy.ts) 全文、[provider-attribution.ts](../../../packages/coding-agent/src/core/provider-attribution.ts) 全文、[agent-loop.ts](../../../packages/agent/src/agent-loop.ts) 380-466 行；六层调用链、逐层职责、归因头、两级 key 解析均逐点对照源码）
 
 本文是 [agent-loop-stream.zh.md](agent-loop-stream.zh.md)（`streamAssistantResponse` 如何**消费**流）的姊妹篇，回答另一面：`streamFunction` 在**生产路径**里到底是什么、它如何把「agent 层的一次流函数调用」翻译成「provider 层的 HTTP 流式请求」。生产 `streamFn` 的代码在 coding-agent 包，跨 agent → coding-agent → ai → provider 四层。
 
 ## 事实源（链接，不复述）
 
 - [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts)（生产 `streamFn` 314-342、`onPayload`/`onResponse` 343-360、`setDefaultStreamFn(streamSimple)` 37、`Agent` 创建 306）
-- [model-runtime.ts](../../../packages/coding-agent/src/core/model-runtime.ts)（`streamSimple` 636-641、`prepareRequest` 573-608）
+- [model-runtime.ts](../../../packages/coding-agent/src/core/model-runtime.ts)（`streamSimple` 636-641、`prepareRequest` 573-608——注意这是 `ModelRuntime` 内部方法，与 agent 包 `types.ts` 新增的 `AgentLoopConfig.prepareRequest` 回调不是同一符号，勿混淆）
 - [lazy.ts](../../../packages/ai/src/api/lazy.ts)（`lazyStream` 46-61、`forwardStream` 31-39）
 - [provider-attribution.ts](../../../packages/coding-agent/src/core/provider-attribution.ts)（归因头，全文 98 行）
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`streamAssistantResponse` 275-370，`StreamFn` 的调用方）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`streamAssistantResponse` 380-466，`StreamFn` 的调用方）
 - [stream-fn.ts](../../../packages/agent/src/stream-fn.ts)（`setDefaultStreamFn`/`getDefaultStreamFn`，与显式 `streamFn` 的兜底关系）
 
 ## 它是什么（≤5 句）
@@ -225,6 +225,23 @@ return { provider, model: resolution.auth.baseUrl ? { ...model, baseUrl: resolut
 | `before_provider_headers` | `transformHeaders` | 发请求前改 header |
 | `before_provider_request` | `Agent.onPayload` | 发请求前改 payload |
 | `after_provider_response` | `Agent.onResponse` | 响应后观察 status/headers |
+
+## 沿链 request/payload 钩子分层对照（防同名混淆）
+
+一次 LLM 调用从 agent 层走到 provider 层，沿途至少挂四个「request/payload」相关钩子，名字高度相似、跨 agent / coding-agent / pi-ai 三个包。读码时先问「它在哪个包、操作什么对象」，再判断是不是同一个东西：
+
+| 钩子 | 包 | 层级 | 操作对象 | 沿链位置 |
+|---|---|---|---|---|
+| `AgentLoopConfig.prepareRequest`（2026-09-27 新增） | agent | AgentMessage 层 | `AgentContext` / `model` / `thinkingLevel` | `runLoop` 内、`streamAssistantResponse` 前（甚至早于 `transformContext`） |
+| `AgentLoopConfig.transformContext` | agent | AgentMessage 层 | `AgentMessage[]` | `streamAssistantResponse` 内、`convertToLlm` 前（对应扩展 `context` 事件） |
+| `ModelRuntime.prepareRequest`（本文第 4 层） | coding-agent | 请求准备层 | headers / auth / baseUrl / apiKey | `lazyStream` 的 setup 内、发请求前 |
+| `before_provider_request`（扩展 hook） | coding-agent 扩展系统 | provider 协议层 | `payload`（provider 格式、`unknown`） | 经 `SimpleStreamOptions.onPayload`，provider API 内、HTTP 前 |
+
+三个关键区分：
+
+- **`prepareRequest` 出现两次但不是同一个符号**：agent 包的 `AgentLoopConfig.prepareRequest`（改 model / thinking / 上下文，agent 决策层）与 `ModelRuntime.prepareRequest`（解析 auth / 合并 header，请求准备层）同名不同物。
+- **层级决定「能改什么」**：越靠 agent 层越能改领域模型（model、`AgentMessage`），越靠 provider 层越能改协议细节（header、payload 字段）。`prepareRequest` 改不了 `temperature`，`before_provider_request` 换不了 model——两者职责不重叠。
+- **`context` 事件 vs `prepareRequest`**：前者在 `transformContext` 处只改 messages 内容，后者更早、还能改 model 与 thinking level。详见 [provider-injection.zh.md](../mechanisms/provider-injection.zh.md)「选型」节的层次口诀。
 
 ## 一句话总结
 

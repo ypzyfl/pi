@@ -1,21 +1,21 @@
 # 人工审批与暂停等待机制
 
-状态：草稿（2026-09-18 对照 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) `prepareToolCall` 626-654 的 `await beforeToolCall`、[agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) 482-490 的 `beforeToolCall` 接线、[extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts) `emitToolCall` 982-1003 的 `await handler`、`wrapUIPromptContext` 441-486、`noOpUIContext` 236-267、[extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) `ExtensionUIDialogOptions` 97-103、[docs/usage.md](../../../packages/coding-agent/docs/usage.md) L309 官方原文、[docs/extensions.md](../../../packages/coding-agent/docs/extensions.md) `permission-gate` 示例）
+状态：草稿（2026-09-18 对照 [agent-loop.ts](../../../packages/agent/src/agent-loop.ts) `prepareToolCall` 703-749 的 `await beforeToolCall`、[agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) 533-552 的 `beforeToolCall` 接线、[extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts) `emitToolCall` 1134-1152 的 `await handler`、`wrapUIPromptContext` 527-566、`noOpUIContext` 320-351、[extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) `ExtensionUIDialogOptions` 108-113、[docs/usage.md](../../../packages/coding-agent/docs/usage.md) 官方原文（2026-09-27 起该段引文已删除）、[docs/extensions.md](../../../packages/coding-agent/docs/extensions.md) `permission-gate` 示例）
 
 本文回答：**pi 如何在 agent loop 的执行点上「暂停执行 + 等待人工审批 + 后续跟进」**。它是 [extension-hooks.zh.md](extension-hooks.zh.md)（hook 点）里 `tool_call` 能 block 但未展开「怎么暂停」那一面的深化。
 
 ## 事实源（链接，不复述）
 
-- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`prepareToolCall` 626-654：`await config.beforeToolCall(...)`）
-- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（482-490：`beforeToolCall` 接到 `emitToolCall`）
-- [extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts)（`emitToolCall` 982-1003：`await handler`；`wrapUIPromptContext` 441-486；`noOpUIContext` 236-267）
-- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionUIDialogOptions` 97-103；`ExtensionUIContext` 的 `confirm`/`select`/`input`/`custom`）
-- [docs/usage.md](../../../packages/coding-agent/docs/usage.md) L309（官方「故意不内置 permission popups」原文）
+- [agent-loop.ts](../../../packages/agent/src/agent-loop.ts)（`prepareToolCall` 703-749：`await config.beforeToolCall(...)`）
+- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（533-552：`beforeToolCall` 接到 `emitToolCall`）
+- [extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts)（`emitToolCall` 1134-1152：`await handler`；`wrapUIPromptContext` 527-566；`noOpUIContext` 320-351）
+- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionUIDialogOptions` 108-113；`ExtensionUIContext` 的 `confirm`/`select`/`input`/`custom`）
+- [docs/usage.md](../../../packages/coding-agent/docs/usage.md)（官方「故意不内置 permission popups」原文；2026-09-27 起 usage.md 已重写，原 L309 引文删除）
 - [docs/extensions.md](../../../packages/coding-agent/docs/extensions.md)（`permission-gate.ts` / `protected-paths.ts` 示例）
 
 ## 背景：pi 故意不内置审批
 
-[docs/usage.md](../../../packages/coding-agent/docs/usage.md) L309 官方原文：
+[docs/usage.md](../../../packages/coding-agent/docs/usage.md) 官方原文（2026-09-27 起该段引文已删除，此处保留历史引用）：
 
 > *It intentionally does not include built-in MCP, sub-agents, **permission popups**, plan mode, to-dos, or background bash. You can build or install those workflows as extensions or packages.*
 
@@ -110,7 +110,7 @@ if (config.beforeToolCall) {
 
 ### 2. 可观测：`ui_prompt_start` / `ui_prompt_end` 事件
 
-`ctx.ui.confirm/select/input/editor/custom` 都被 `ExtensionRunner.wrapUIPromptContext` 包裹（`runner.ts` 441-486）。调用时发 `ui_prompt_start`，结束时发 `ui_prompt_end`——这是**可观测的「暂停区间」信号**，UI 据此显示「等待用户输入」状态、其他扩展也能感知。
+`ctx.ui.confirm/select/input/editor/custom` 都被 `ExtensionRunner.wrapUIPromptContext` 包裹（`runner.ts` 527-566）。调用时发 `ui_prompt_start`，结束时发 `ui_prompt_end`——这是**可观测的「暂停区间」信号**，UI 据此显示「等待用户输入」状态、其他扩展也能感知。
 
 ### 3. 模式限制：只有有 UI 的模式才会真暂停
 
@@ -124,7 +124,7 @@ if (config.beforeToolCall) {
 
 ### 4. 审批本身可被取消：`signal` / `timeout`
 
-`ExtensionUIDialogOptions`（`types.ts` 97-103）：
+`ExtensionUIDialogOptions`（`types.ts` 108-113）：
 
 ```typescript
 export interface ExtensionUIDialogOptions {
@@ -157,11 +157,11 @@ pi 的「暂停等待人工审批」机制是 **async handler + `await ctx.ui.co
 
 ## 验证方式
 
-- `read_file` 读 `agent-loop.ts` `prepareToolCall` 626-654（`await beforeToolCall` + block 判定）
-- `read_file` 读 `agent-session.ts` 482-490（`beforeToolCall` → `emitToolCall` 接线）
-- `read_file` 读 `runner.ts` `emitToolCall` 982-1003（`await handler`）、`wrapUIPromptContext` 441-486（`ui_prompt_start/end`）、`noOpUIContext` 236-267
-- `read_file` 读 `types.ts` `ExtensionUIDialogOptions` 97-103、`ExtensionUIContext` 的 dialog 方法
-- `read_file` 读 `docs/usage.md` L309（官方原文）
+- `read_file` 读 `agent-loop.ts` `prepareToolCall` 703-749（`await beforeToolCall` + block 判定）
+- `read_file` 读 `agent-session.ts` 533-552（`beforeToolCall` → `emitToolCall` 接线）
+- `read_file` 读 `runner.ts` `emitToolCall` 1134-1152（`await handler`）、`wrapUIPromptContext` 527-566（`ui_prompt_start/end`）、`noOpUIContext` 320-351
+- `read_file` 读 `types.ts` `ExtensionUIDialogOptions` 108-113、`ExtensionUIContext` 的 dialog 方法
+- `read_file` 读 `docs/usage.md`（官方原文；2026-09-27 起该段引文已删除）
 
 ## 遗留问题
 

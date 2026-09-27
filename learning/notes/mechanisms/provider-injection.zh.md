@@ -6,14 +6,14 @@
 
 ## 事实源（链接，不复述）
 
-- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`InputSource` L864、`InputEvent` L866-877、`InputEventResult` L880-883、`BeforeProviderRequestEvent` L694-697、`BeforeProviderHeadersEvent` L704-707、`ExtensionMode` L307）
-- [extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts)（`emitInput` L1246-1285、`emitBeforeProviderRequest` L1087-1116、`emitBeforeProviderHeaders` L1118-1143）
-- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`prompt` 的 `source` 默认 `"interactive"` L1277、`sendUserMessage` 用 `source:"extension"` L1672、`bindExtensions` L2541）
-- [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts)（`onPayload`→`emitBeforeProviderRequest` L343-349、`transformContext`→`emitContext` L362-366）
+- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`InputSource` L963、`InputEvent` L966-976、`InputEventResult` L979-982、`BeforeProviderRequestEvent` L720-723、`BeforeProviderHeadersEvent` L730-733、`ExtensionMode` L317）
+- [extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts)（`emitInput` L1412-1451、`emitBeforeProviderRequest` L1253-1282、`emitBeforeProviderHeaders` L1284-1310）
+- [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`prompt` 的 `source` 默认 `"interactive"` L1637、`sendUserMessage` 用 `source:"extension"` L2034、`bindExtensions` L2919）
+- [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts)（`onPayload`→`emitBeforeProviderRequest` L401、`transformContext`→`emitContext` L405-409）
 - [print-mode.ts](../../../packages/coding-agent/src/modes/print-mode.ts)（`bindExtensions({mode: print/json})` L76-77、`session.prompt` 不传 source L132/136）
 - [rpc-mode.ts](../../../packages/coding-agent/src/modes/rpc/rpc-mode.ts)（`bindExtensions({mode:"rpc"})` L319-321）
-- [interactive-mode.ts](../../../packages/coding-agent/src/modes/interactive/interactive-mode.ts)（`bindExtensions({mode:"tui"})` L1865-1867）
-- [cli/args.ts](../../../packages/coding-agent/src/cli/args.ts)（`--extension`/`-e` flag L166）
+- [interactive-mode.ts](../../../packages/coding-agent/src/modes/interactive/interactive-mode.ts)（`bindExtensions({mode:"tui"})` L1909-1911）
+- [cli/args.ts](../../../packages/coding-agent/src/cli/args.ts)（`--extension`/`-e` flag L176-178）
 
 ## 它是什么（≤5 句）
 
@@ -48,7 +48,7 @@ flowchart TD
 | 注入点 | 改什么 | 语义 | 出处 |
 |---|---|---|---|
 | `input` | 输入文本/图片 | `transform` 链式改写，或 `handled` 短路 | runner.ts `emitInput` |
-| `before_provider_headers` | headers | **就地 mutate**，返回值忽略，`null` 删该头 | types.ts L699-707 |
+| `before_provider_headers` | headers | **就地 mutate**，返回值忽略，`null` 删该头 | types.ts L725-733 |
 | `before_provider_request` | payload | 返回非 `undefined` 即**替换**；`undefined` 保持原样 | runner.ts `emitBeforeProviderRequest` |
 
 ## 跨模式适用性矩阵（核心增量）
@@ -61,7 +61,7 @@ flowchart TD
 | json (`--mode json`) | `"json"` | ✓ | `"interactive"`（默认） | ✓ | false |
 | sdk (`createAgentSession`) | 调用者设 | ✓ | 调用者控，默认 `"interactive"` | ✓ | 视 mode |
 
-依据：`prompt()` 的 `source` 默认 `"interactive"`（agent-session.ts L1277 `options?.source ?? "interactive"`），print/json 的 `runPrintMode` 调 `session.prompt()` 时不传 source（print-mode.ts L132/136），所以是默认值；扩展自己 `sendUserMessage` 注入的消息是 `"extension"`（agent-session.ts L1672）。`InputSource` 三个值穷尽（types.ts L864），无第四种。`ctx.hasUI` 在 print/json 为 false（extensions.md L977-979），故 `input` handler 内不可调 `ctx.ui.confirm/select` 等。
+依据：`prompt()` 的 `source` 默认 `"interactive"`（agent-session.ts L1637 `options?.source ?? "interactive"`），print/json 的 `runPrintMode` 调 `session.prompt()` 时不传 source（print-mode.ts L132/136），所以是默认值；扩展自己 `sendUserMessage` 注入的消息是 `"extension"`（agent-session.ts L2034）。`InputSource` 三个值穷尽（types.ts L963），无第四种。`ctx.hasUI` 在 print/json 为 false（extensions.md L197-198），故 `input` handler 内不可调 `ctx.ui.confirm/select` 等。
 
 结论：这套方案是**扩展机制本身，与传输层无关**——各模式只要加载了扩展、走了 `AgentSession.prompt()`，链路就一致。唯一要改的是 source 过滤逻辑。
 
@@ -69,7 +69,7 @@ flowchart TD
 
 1. **必须 `transform` 剥离，否则控制信号作为对话内容发给模型。** 若不剥离，自定义内容会原样成为 user message 进入 `payload.messages`，模型会看到。剥离后正文照常进入 agent。反例：如果你其实就想让模型看到这段内容，那根本不必走 `before_provider_request`——`payload.messages` 里已经有了，此时该用 `context` 追加消息或改 system prompt（选型见上文「选型」；两层的完整论述见姊妹篇 [extension-hooks.zh.md](../modules/extension-hooks.zh.md)「context 与 before_provider_* 的层次差异」）。
 
-2. **steer/followUp 时序对齐。** steer 在"当前 turn 结束、下次 LLM 调用前"送达（rpc.md L62），所以闭包里的 `pending` 要按 LLM 调用顺序 FIFO 消费。但一次 prompt 可能触发多轮 tool→LLM 循环，每轮都触发一次 `before_provider_request`——需决定注入是"仅首条"还是"每次"。用 `pending.shift()` 是仅首条，用 `pending[0]` 不弹出是每次。
+2. **steer/followUp 时序对齐。** steer 在"当前 turn 结束、下次 LLM 调用前"送达（原 rpc.md L62；2026-09-27 起 rpc.md 已重写，该细节移至 rpc-commands.md），所以闭包里的 `pending` 要按 LLM 调用顺序 FIFO 消费。但一次 prompt 可能触发多轮 tool→LLM 循环，每轮都触发一次 `before_provider_request`——需决定注入是"仅首条"还是"每次"。用 `pending.shift()` 是仅首条，用 `pending[0]` 不弹出是每次。
 
 3. **compaction/summary 等内部 LLM 调用也触发 `before_provider_request`，但前面没有对应的 `input`。** 此时闭包 `pending` 为空、自然跳过——这恰好是安全的默认。但若你想区分"用户发起的调用 vs 内部调用"，coding-agent 的 `before_provider_request` 事件本身**不带 step 信息**（harness 层有 `step:"assistant"|"deferred"|"compaction"|"branch_summary"`，但生产运行时没暴露给扩展），只能靠 pending 是否为空间接判断。
 
@@ -79,11 +79,11 @@ flowchart TD
 
 - 原以为：这套方案只对 RPC 适用，因为"自定义内容是从 RPC prompt 命令传进来的"。
 - 实际是：`input` 事件对五种模式都触发，print/json 的 source 是默认的 `"interactive"` 而非 `"rpc"`。原示例用 `if (event.source !== "rpc") return continue` 做白名单，会把 interactive/print/json/sdk 的输入全跳过。
-- 修正来源：agent-session.ts L1277（`source` 默认值）、print-mode.ts L132/136（不传 source）、types.ts L864（`InputSource` 穷尽三值）。修正为排除式：`if (event.source === "extension") return continue`（只跳扩展自己注入的，避免循环处理）。
+- 修正来源：agent-session.ts L1637（`source` 默认值）、print-mode.ts L132/136（不传 source）、types.ts L963（`InputSource` 穷尽三值）。修正为排除式：`if (event.source === "extension") return continue`（只跳扩展自己注入的，避免循环处理）。
 
 ## 可运行示例
 
-约定 prompt 文本以 `@@pi-inject {json}@@` 开头携带控制信号，后面是正常对话。加载：`pi --extension ./rpc-inject.ts`（五种模式都加载扩展，见 args.ts L166）。
+约定 prompt 文本以 `@@pi-inject {json}@@` 开头携带控制信号，后面是正常对话。加载：`pi --extension ./rpc-inject.ts`（五种模式都加载扩展，见 args.ts L176-178）。
 
 ```typescript
 // rpc-inject.ts —— 跨模式生效的 provider 注入扩展
@@ -149,13 +149,13 @@ print/json 同样适用（`pi -p "@@pi-inject {...}@@正文"`）。interactive �
 
 ## 验证方式
 
-- `read_file` 读 [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) L864-883（`InputSource`/`InputEvent`/`InputEventResult`）、L694-707（两个 provider 事件定义）
-- `read_file` 读 [runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts) L1087-1143（`emitBeforeProviderRequest`/`emitBeforeProviderHeaders` 的替换 vs mutate 语义）、L1246-1285（`emitInput` 的 transform/handled 链）
-- `read_file` 读 [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) L1250-1280（`prompt` 的 source 默认）、L1668-1673（`sendUserMessage` 用 `"extension"`）
+- `read_file` 读 [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts) L963-982（`InputSource`/`InputEvent`/`InputEventResult`）、L720-733（两个 provider 事件定义）
+- `read_file` 读 [runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts) L1253-1310（`emitBeforeProviderRequest`/`emitBeforeProviderHeaders` 的替换 vs mutate 语义）、L1412-1451（`emitInput` 的 transform/handled 链）
+- `read_file` 读 [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts) L1637（`prompt` 的 source 默认）、L2006-2036（`sendUserMessage` 用 `"extension"`）
 - `read_file` 读 [print-mode.ts](../../../packages/coding-agent/src/modes/print-mode.ts) L76-77/L132/136（print/json 的 mode 与不传 source）
 - 跑验证：`pi --extension ./rpc-inject.ts -p "@@pi-inject {\"headers\":{\"x-test\":\"1\"}}@@hi"`，配合带 `onResponse` 日志的扩展确认 header 落地
 
 ## 遗留问题
 
 - coding-agent 的 `before_provider_request` 事件不带 step 信息（harness 层有），若需"仅对用户发起的 assistant 调用注入、跳过 compaction/summary"，目前只能靠 pending 是否为空间接判断——是否有更稳的区分方式，待阶段 5（扩展体系）深入时核对 `ExtensionRunner` 是否泄露 step 上下文。
-- 多扩展共存时的 handler 顺序：`emitBeforeProviderRequest` 按"扩展加载顺序"遍历（runner.ts L1091），多个注入扩展的叠加语义（后者 payload 基于前者）未实测，待有多扩展场景时验证。
+- 多扩展共存时的 handler 顺序：`emitBeforeProviderRequest` 按"扩展加载顺序"遍历（runner.ts L1257），多个注入扩展的叠加语义（后者 payload 基于前者）未实测，待有多扩展场景时验证。

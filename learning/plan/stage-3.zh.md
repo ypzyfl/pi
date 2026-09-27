@@ -34,7 +34,7 @@
 
 - [x] `StreamFn`：签名与契约（不抛错、失败编码进流事件 + 最终 stopReason "error"/"aborted"）
 - [x] `AgentMessage` / `AgentState`：自定义消息扩展（`CustomAgentMessages` 声明合并）、`AgentState` 的 accessor 复制语义（`tools` / `messages` 赋值即拷贝）
-- [x] `AgentContext`（messages + tools；`systemPrompt` 字段已于 2026-09-19 删除，改由 transcript 的 system 消息承载）与 `AgentLoopConfig`（convertToLlm / transformContext / getApiKey / shouldStopAfterTurn / prepareNextTurn / getSteeringMessages / getFollowUpMessages / beforeToolCall / afterToolCall / toolExecution）
+- [x] `AgentContext`（messages + tools；`systemPrompt` 字段已于 2026-09-19 删除，改由 transcript 的 system 消息承载）与 `AgentLoopConfig`（convertToLlm / transformContext / getApiKey / finishTurn / prepareRequest / prepareNextTurn / getSteeringMessages / getFollowUpMessages / beforeToolCall / afterToolCall / toolExecution）
 - [x] `AgentTool`（label / prepareArguments / execute / replay / executionMode）与 `AgentToolResult`（content / details / usage / terminate；`addedToolNames` 字段已于 2026-09-19 删除，工具声明改为经 transcript 的 system 消息动态声明）
 - [x] `AgentEvent` 全集：三类生命周期——agent（`agent_start` / `agent_end`）、turn（`turn_start` / `turn_end`）、message（`message_start` / `message_update` / `message_end`）、tool（`tool_execution_start` / `tool_execution_update` / `tool_execution_end`）
 - [x] `ToolExecutionMode`（sequential / parallel）与 `QueueMode`（all / one-at-a-time）两种枚举的语义
@@ -49,7 +49,7 @@
 - [x] 事件序列：从 `agent_start` 到 `agent_end` 完整走一遍，逐事件标出由哪个函数哪一行 `emit`（配合 [session-message-flow.zh.md](../notes/mechanisms/session-message-flow.zh.md) 已有的 entry 链）
 - [x] `streamAssistantResponse`：`transformContext`（AgentMessage[]→AgentMessage[]）→ `convertToLlm`（AgentMessage[]→Message[]，**LLM 调用边界**）→ 组装 `Context` → `getApiKey` 解析 → `streamFunction` → 流式事件折叠成 `partialMessage` 并持续 `message_update`，最终 `done`/`error` 结算
 - [x] 工具执行三段式：`prepareToolCall`（找 tool → `prepareArguments` → `validateToolArguments` → `beforeToolCall`，可 `block` 或 `immediate`）→ `executePreparedToolCall`（`execute` + `onUpdate` 回调）→ `finalizeExecutedToolCall`（`afterToolCall` 字段级合并）；`sequential` 与 `parallel` 两条路径的执行差异
-- [x] 停止/继续条件全集：`stopReason === "error"/"aborted"` 提前返回、`shouldStopAfterTurn`（turn 后优雅停）、`getSteeringMessages`（turn 间隙注入）、`getFollowUpMessages`（本应停止后继续）、`prepareNextTurn`（下一 turn 前替换 context/model/thinking）
+- [x] 停止/继续条件全集：`stopReason === "error"/"aborted"` 提前返回、`finishTurn`（turn 后返回决策：`{action:"end"}` 优雅停 / `{action:"continue"}` 保证再来一次）、`prepareRequest`（每次 provider 请求前替换 context/model/thinking）、`getSteeringMessages`（turn 间隙注入）、`getFollowUpMessages`（本应停止后继续）、`prepareNextTurn`（下一 turn 前替换 context/model/thinking）
 - [x] 一个边界保护：`failToolCallsFromTruncatedMessage` 为什么存在（`stopReason === "length"` 时工具参数可能被截断，宁可全部标错也不执行）
 - [x] 用一句话回答：一次 turn 的完整生命周期是什么、loop 凭什么决定「继续还是结束」？
 
@@ -61,7 +61,7 @@
 - [ ] 状态：`_state`（`MutableAgentState`，accessor 复制语义）+ `steeringQueue` / `followUpQueue`（`PendingMessageQueue`，`QueueMode` 决定 drain 方式）+ `listeners`（`subscribe` 订阅集）
 - [ ] 队列 API：`steer` / `followUp` / `clearSteeringQueue` / `clearFollowUpQueue` / `hasQueuedMessages` 与 loop 里 `getSteeringMessages` / `getFollowUpMessages` 的对应关系
 - [ ] 生命周期：`prompt` / `continue`（`continue` 遇到 assistant 末消息时的 drain 顺序）→ `runPromptMessages` / `runContinuation` → `runWithLifecycle`（`activeRun` 互斥 + `AbortController` + `finishRun`）
-- [ ] 上下文与配置：`createContextSnapshot`（从 `_state` 快照）与 `createLoopConfig`（把 `Agent` 的字段/hook 翻译成 `AgentLoopConfig`）——注意 `shouldStopAfterTurn` / `prepareNextTurn` / `getSteeringMessages` 在这里怎么被包一层
+- [ ] 上下文与配置：`createContextSnapshot`（从 `_state` 快照）与 `createLoopConfig`（把 `Agent` 的字段/hook 翻译成 `AgentLoopConfig`）——注意 `finishTurn` / `prepareRequest` / `prepareNextTurn` / `getSteeringMessages` 在这里怎么被包一层
 - [ ] `processEvents`：事件如何回写到 `_state`（`message_end` 才 `push` 进 `messages`；`tool_execution_start/end` 维护 `pendingToolCalls`；`turn_end` 记 `errorMessage`），再 `await` 所有 listener
 - [ ] 失败路径：`handleRunFailure` 手工发出 message_start/end + turn_end + agent_end 一条完整序列
 - [ ] 用一句话回答：`Agent`（有状态）与 `runAgentLoop`（无状态）谁拥有 transcript、谁只是执行器？

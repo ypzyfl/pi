@@ -4,14 +4,14 @@
 
 ## 事实源（链接，不复述）
 
-- [packages/ai/src/types.ts](../../../packages/ai/src/types.ts)：`SystemMessage`（L484-500）、`Context`（L610-614）、`TranscriptContext`
+- [packages/ai/src/types.ts](../../../packages/ai/src/types.ts)：`SystemMessage`（L515）、`Context`（L697）、`TranscriptContext`
 - [packages/ai/src/utils/transcript.ts](../../../packages/ai/src/utils/transcript.ts)：`normalizeContext` / `getCurrentSystemMessage` / `getCurrentTools` / `getToolStateChanges` / `resolveTranscript` / `collapseSystemMessages` / `toToolDeclaration`
-- [packages/agent/src/agent-loop.ts](../../../packages/agent/src/agent-loop.ts)：`declareToolChanges`（L291）、`streamAssistantResponse`（L339）
-- [packages/agent/src/types.ts](../../../packages/agent/src/types.ts)：`AgentContext`（L434）、`AgentState.systemPrompt`（L348）、`StreamFn`（L33）
+- [packages/agent/src/agent-loop.ts](../../../packages/agent/src/agent-loop.ts)：`declareToolChanges`（L332）、`streamAssistantResponse`（L380）
+- [packages/agent/src/types.ts](../../../packages/agent/src/types.ts)：`AgentContext`（L471）、`AgentState.systemPrompt`（L385）、`StreamFn`（L33）
 - [packages/coding-agent/src/core/system-prompt.ts](../../../packages/coding-agent/src/core/system-prompt.ts)：`buildSystemPromptSections`（L121）、`diffSystemPromptSections`（L204）
-- [packages/coding-agent/src/core/agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)：`_preparePromptAndToolLoadout`（L1115）、`_installAgentNextTurnRefresh`（L565）
-- [packages/coding-agent/src/core/session-manager.ts](../../../packages/coding-agent/src/core/session-manager.ts)：`appendMessage`（L1082）、`_persist`（L1040）
-- [session-format.md](../../../packages/coding-agent/docs/session-format.md)：`SessionMessageEntry` 的 system 消息形态（L226-236）
+- [packages/coding-agent/src/core/agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)：`_preparePromptAndToolLoadout`（L1410）、`_installAgentNextTurnRefresh`（L690）
+- [packages/coding-agent/src/core/session-manager.ts](../../../packages/coding-agent/src/core/session-manager.ts)：`appendMessage`（L1204）、`_persist`（L1172）
+- [session-format.md](../../../packages/coding-agent/docs/session-format.md)：`SessionMessageEntry` 的 system 消息形态（L78-84）
 
 ## 它是什么（≤5 句）
 
@@ -27,7 +27,7 @@ pi 把「系统提示词」和「工具声明」从运行时内存字段（旧 `
 
 切换智能体等导致提示词变化时，`_preparePromptAndToolLoadout` 对比「重放当前 transcript 得到的 sections」与「目标 sections」，`diffSystemPromptSections` 只产出变化了的段（同名段新值、消失段 `null`）：
 
-```1124:1128:packages/coding-agent/src/core/agent-session.ts
+```1419:1423:packages/coding-agent/src/core/agent-session.ts
 	const sections = diffSystemPromptSections(
 		getCurrentSystemMessage(messages)?.sections ?? {},
 		buildSystemPromptSections(options),

@@ -51,4 +51,4 @@ flowchart LR
 
 ## 基准
 
-初始落笔于 pi-coding-agent 0.85.1（commit 9767ba275，2026-09-07）；2026-09-14 核对到 commit 71dca871b，版本号仍 0.85.1，核心结构（6 个桌面端包、8 个内置工具、扩展三件套、`pi-test.ps1` 运行方式）均未变；上游仓库已从 `earendil-works/pi-mono` 更名为 `earendil-works/pi`。pi 迭代快，所有命令与文件路径以你本机当前版本为准；发现不一致时修本目录对应行。
+初始落笔于 pi-coding-agent 0.85.1（commit 9767ba275，2026-09-07）；2026-09-14 核对到 commit 71dca871b，版本号仍 0.85.1，核心结构（6 个桌面端包、8 个内置工具、扩展三件套、`pi-test.ps1` 运行方式）均未变；2026-09-27 已升至 0.87.1（agent 包 loop 控制流 API 重构、TypeScript 7 迁移）；上游仓库已从 `earendil-works/pi-mono` 更名为 `earendil-works/pi`。pi 迭代快，所有命令与文件路径以你本机当前版本为准；发现不一致时修本目录对应行。

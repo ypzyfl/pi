@@ -8,7 +8,7 @@
 
 ## 事实源（链接，不复述）
 
-- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionEvent` 联合 L1086-1113、`ExtensionAPI.on` 签名 L1257-1301、各事件定义）
+- [extensions/types.ts](../../../packages/coding-agent/src/core/extensions/types.ts)（`ExtensionEvent` 联合 L1185-1216、`ExtensionAPI.on` 签名 L1370-1436、各事件定义）
 - [extensions/runner.ts](../../../packages/coding-agent/src/core/extensions/runner.ts)（`ExtensionRunner.emit` / `emitInput` / `emitContext` / `emitToolCall` / `emitToolResult` / `emitBeforeAgentStart` / `emitBeforeProviderRequest` / `emitBeforeProviderHeaders` / `emitMessageEnd`）
 - [agent-session.ts](../../../packages/coding-agent/src/core/agent-session.ts)（`input`、`before_agent_start`、`tool_call`、`tool_result` 的接线）
 - [sdk.ts](../../../packages/coding-agent/src/core/sdk.ts)（`context`、`before_provider_request`、`before_provider_headers`、`after_provider_response` 的装配）

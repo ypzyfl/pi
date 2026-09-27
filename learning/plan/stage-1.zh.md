@@ -45,7 +45,7 @@
 
 ## 第 4 步：依赖拓扑亲手画
 
-- [x] 读根 [package.json](../../package.json) 的 `build` 脚本，抄下构建顺序（chord → tui → telemetry → ai → agent → sqlite-node → protocol → client → server → coding-agent；evals 不在链上——private 无 build 脚本）
+- [x] 读根 [package.json](../../package.json) 的 `build` 脚本，抄下构建顺序（chord → tui → telemetry → ai → durable → agent → sqlite-node → protocol → client → server → coding-agent；evals 不在链上——private 无 build 脚本；durable 为 2026-09-19 加入）
 - [x] 逐包打开 package.json 核对 workspace 依赖边，亲手画一张拓扑图（含 dependencies 实线与 devDependencies 虚线、L0–L4 分层，见 [map.zh.md](../map.zh.md)「依赖拓扑」修正版）
 - [x] 与 [map.zh.md](../map.zh.md)「依赖拓扑」的已验证版对照：发现三处偏差并已按 package.json 修正——map 原图漏 client → chord、server → chord 两条边；「evals 独立无 workspace 依赖」有误（实有 dev 边 ai + coding-agent）
 - [x] 用一句话回答：为什么 build 顺序恰好是依赖拓扑序？——包内 `tsconfig.build.json` 的 paths 把 workspace 依赖解析到**上游 dist 产物**（agent 的 paths 指向 `../ai/dist/index.d.ts`），下游构建前上游产物必须在场；根 build 脚本即此 DAG 的手工线性化（check 与 build 解析面分离：根 tsconfig paths 指向 src，故 check 不依赖 dist）

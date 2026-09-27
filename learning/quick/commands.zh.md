@@ -35,7 +35,7 @@
 
 | 场景 | 命令 | 说明 |
 |---|---|---|
-| 代码门禁（改代码后必跑） | `npm run check` | biome + 依赖钉版 + tsgo 等，全绿才可提交 |
+| 代码门禁（改代码后必跑） | `npm run check` | biome + 依赖钉版 + tsc 等，全绿才可提交 |
 | 非 e2e 测试（隔离环境） | 仓库根 `.\test.sh`（需 Git Bash） | 见下「Windows 跑 test.sh」 |
 | 包内单测（vitest 包） | 包根 `node "$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js" --run test/<file>.test.ts` | |
 | 包内单测（tui，node:test） | 包根 `node --test test/<file>.test.ts` | |

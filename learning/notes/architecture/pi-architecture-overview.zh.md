@@ -145,7 +145,7 @@ flowchart TB
 
 **3. 依赖强度：边一样画，用法不一样重。** package.json 的依赖边是声明级，不区分调用强度。已知的强度差异：agent → ai 是运行时主路径（每次 LLM 调用都经它）；agent → chord 目前已知至少是类型复用（harness/context.ts 的 Context / ContextKey，运行时参与度是 Q3 待验证）；coding-agent → agent 的实际使用集中在 Agent 类与 harness 子树的 compaction 纯函数，而非全量 API——特别是「coding-agent 复用 harness 纯函数」这一点，从依赖图上完全不可见（图上只有一条边，看不出复用的是哪个子树）。
 
-**4. 版本与状态：图不携带元数据。** 全部包 lockstep 同版本号（当前基准 0.85.1）；server 标注 experimental；sqlite-node 是可选会话后端（默认实现是 JSONL 文件，SQLite 只在显式选择时启用）；evals 独立发布，但服务于整个仓库的评测。
+**4. 版本与状态：图不携带元数据。** 全部包 lockstep 同版本号（当前基准 0.87.1）；server 标注 experimental；sqlite-node 是可选会话后端（默认实现是 JSONL 文件，SQLite 只在显式选择时启用）；evals 独立发布，但服务于整个仓库的评测。
 
 ## 3. 运行时双栈：最重要的架构事实（Q1 的源码裁决）
 
@@ -321,7 +321,7 @@ runAgentLoop (agent-loop.ts, 双层 while)
  |    |  |       v                                                  |
  |    |  |  toolResult 消息以 message_start/end 推回上下文            |
  |    |  |       |                                                  |
- |    |  |  turn_end -> shouldStopAfterTurn? -> 可提前终止            |
+ |    |  |  finishTurn? -> turn_end -> 可提前终止            |
  |    |  +----------------------------------------------------------+
  |    |
  |    |  (无 follow-up 排队消息 -> 退出外层循环)
@@ -333,7 +333,7 @@ runAgentLoop (agent-loop.ts, 双层 while)
  +---> 模式层监听者: TUI 渲染 / rpc stdout / print 输出
 ```
 
-停止条件全集：error/aborted、`shouldStopAfterTurn`、工具批全部 `terminate === true`、无 follow-up 消息。
+停止条件全集：error/aborted、`finishTurn` 返回 `{action:"end"}`、工具批全部 `terminate === true`、无 follow-up 消息。
 
 ## 5. AgentSession：组装中枢
 
@@ -423,7 +423,7 @@ extension 的挂载点全集：工具（`registerTool`）、斜杠命令（`regi
 | coding-agent | 产品层：AgentSession 组装、内置工具、会话/设置/信任、扩展加载、三模式 | 阶段 4 |
 | agent | 运行时核心：双栈（loop+Agent 经典栈 / AgentHarness durable 栈）+ 共享纯函数（compaction 等） | 阶段 3 |
 | ai | 模型层：统一多 provider LLM API、流式词汇、生成式模型目录（`models.generated.ts` 红线：改走 `generate-models.ts`） | 阶段 2 |
-| durable | Pico 持久化运行时：conversation / task / document 的 durable record 契约 + 内存存储（当前无包依赖它） | 阶段 7 按需 |
+| durable | Pico 持久化运行时：conversation / task / document 的 durable record 契约，memory/jsonl/sqlite 三种存储后端 + conformance 套件（当前无包依赖它） | 阶段 7 按需 |
 | tui | 独立 UI 库：差分渲染、组件模型，仅被 coding-agent 消费 | 阶段 7 按需 |
 | chord | 地基：应用组合运行时（services / replicated state / RPC / plugins），几乎被所有上层依赖 | 阶段 7 按需 |
 | telemetry | 地基：厂商中立遥测契约（无 workspace 依赖） | 阶段 7 按需 |
