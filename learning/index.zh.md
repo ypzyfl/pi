@@ -18,10 +18,10 @@
 | `journal/` | 认知事件原始记录（`YYYY-MM-DD-NN-slug.zh.md`） |
 | `notes/` | 认知单元（每篇一个可独立复述的理解）：architecture / mechanisms / modules |
 | `guide/` | 指导性手册（长期反复照做的操作手册） |
-| `design/` | 设计方案 |
+| `design/` | 设计方案：[pi 的 ACP 支持三路径](design/pi-acp-support-paths.zh.md)（extension 死路 / ACP mode 改源码 / SDK 内嵌三路径对比与协议漂移分析） |
 | `scripts/` | 可跑脚本 |
 
-以上按需生长的目录中，guide / design / scripts 暂无文件，规则见 [method.zh.md](method.zh.md)「目录结构」；experiments / journal / notes 的现有记录见下三节。
+以上按需生长的目录中，guide / scripts 暂无文件，规则见 [method.zh.md](method.zh.md)「目录结构」；experiments / journal / notes 的现有记录见下三节。
 
 ### experiments 现有记录
 
@@ -51,6 +51,8 @@
 | [notes/mechanisms/abort-signal.zh.md](notes/mechanisms/abort-signal.zh.md) | AbortSignal 机制：控制者（AbortController.abort）与感知者（监听/轮询）单向信号链、raceWithAbortSignal 三重竞态防护、provider 层统一 aborted/error、abort 永不重试、两个 abort.ts 复制适配 |
 | [notes/mechanisms/structured-system-prompt.zh.md](notes/mechanisms/structured-system-prompt.zh.md) | 结构化系统提示词：system 消息承载 prompt 与工具声明——sections 命名段、diff 追加 patch、重放按段覆盖（持久层追加 vs 投影层替换）、prompt caching 三段断点 |
 | [notes/mechanisms/context-compaction.zh.md](notes/mechanisms/context-compaction.zh.md) | 上下文自动压缩：阈值公式触发、独立摘要调用、同步阻塞、系统提示词/工具不受影响（压缩边界快照保存） |
+| [notes/mechanisms/provider-injection.zh.md](notes/mechanisms/provider-injection.zh.md) | 通过扩展把自定义内容注入 provider 请求：选型准则（对话内容用 context、控制信号用 before_provider_*）；input 收集→闭包暂存→before_provider_headers/before_provider_request 消费的跨事件链；五种工作方式适用性矩阵（print/json 的 source 默认 interactive 而非 rpc）；四陷阱（剥离/steer 时序/compaction 内部调用/payload 随 provider 变） |
+| [notes/mechanisms/command-dispatch.zh.md](notes/mechanisms/command-dispatch.zh.md) | 命令分派与 input 事件：两层 command（RPC 协议级 vs slash）、四模式对应物（SDK=AgentSession 方法）、prompt 内部分流（extension command 在 input 前短路）、命令分类 × hook 矩阵（文本类→input、副作用类→专门事件可 cancel、查询/配置类→无事件）、input 判别四维（mode/source/streamingBehavior/text） |
 | [notes/modules/agent-package-overview.zh.md](notes/modules/agent-package-overview.zh.md) | agent 包骨架：顶层七文件 + search 职责、README 嵌入者叙事、observational vs barrier、convertToLlm 唯一桥接（阶段 3 第 1 步） |
 | [notes/modules/agent-loop.zh.md](notes/modules/agent-loop.zh.md) | agent-loop.ts 精读：四入口 2×2 组合、双层 while 两种「继续」、事件序列、工具三段式、停止/继续条件、错误通道辨析、runAgentLoop vs agentLoop 搜证（阶段 3 第 2/3 步） |
 | [notes/modules/agent-loop-runloop.zh.md](notes/modules/agent-loop-runloop.zh.md) | runLoop 深度解析：完整流程图 + 节点解释、三条退出路径、一次 runLoop 的粒度（session/run/turn）、steering/follow-up 四条分类来源 |
