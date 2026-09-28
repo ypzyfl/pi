@@ -18,12 +18,12 @@
 
 ```mermaid
 flowchart LR
-    A["context.messages<br/>AgentMessage[]"] --> B{"transformContext<br/>(可选)"}
-    B -->|是| B2["AgentMessage[]<br/>（裁剪/注入后）"]
-    B -->|否| B3["AgentMessage[]<br/>（原样）"]
+    A["context.messages<br/>AgentMessage［］"] --> B{"transformContext<br/>(可选)"}
+    B -->|是| B2["AgentMessage［］<br/>（裁剪/注入后）"]
+    B -->|否| B3["AgentMessage［］<br/>（原样）"]
     B2 --> C["convertToLlm<br/>(必需)"]
     B3 --> C
-    C --> D["Message[]<br/>（LLM 可理解）"]
+    C --> D["Message［］<br/>（LLM 可理解）"]
     D --> E["llmContext = normalizeContext({ messages })"]
     E --> F["getApiKey(可选)<br/>→ apiKey"]
     F --> G["streamFunction(model, llmContext, opts)"]

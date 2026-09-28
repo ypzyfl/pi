@@ -25,8 +25,8 @@
 flowchart TD
     subgraph L1["① streamAssistantResponse · agent-loop.ts 275"]
         direction TB
-        n1["transformContext?<br/>AgentMessage[] → AgentMessage[]"]
-        n2["convertToLlm<br/>AgentMessage[] → Message[]"]
+        n1["transformContext?<br/>AgentMessage［］ → AgentMessage［］"]
+        n2["convertToLlm<br/>AgentMessage［］ → Message［］"]
         n3["llmContext = normalizeContext({ messages })"]
         n4["getApiKey?(provider)<br/>→ resolvedApiKey"]
         n5["streamFunction(model, llmContext,<br/>{...config, apiKey, signal})"]
